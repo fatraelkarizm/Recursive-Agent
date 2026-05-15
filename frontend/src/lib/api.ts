@@ -80,6 +80,31 @@ export async function fetchCanvasAgents(): Promise<StoredCanvasAgent[]> {
   );
 }
 
+export type TelegramBotStatus = {
+  running: boolean;
+  botUsername: string | null;
+  token: string | null;
+};
+
+export async function fetchTelegramStatus(): Promise<TelegramBotStatus> {
+  const response = await fetch(`${BACKEND_URL}/api/telegram/status`, { method: "GET" });
+  if (!response.ok) throw new Error("Failed to fetch Telegram status");
+  return response.json() as Promise<TelegramBotStatus>;
+}
+
+export async function startTelegramBot(token: string): Promise<{ ok: boolean; username?: string; error?: string }> {
+  const response = await fetch(`${BACKEND_URL}/api/telegram/start`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token }),
+  });
+  return response.json() as Promise<{ ok: boolean; username?: string; error?: string }>;
+}
+
+export async function stopTelegramBot(): Promise<void> {
+  await fetch(`${BACKEND_URL}/api/telegram/stop`, { method: "POST" });
+}
+
 export async function createMission(payload: MissionRequest): Promise<MissionResponse> {
   const response = await fetch(`${BACKEND_URL}/api/missions`, {
     method: "POST",

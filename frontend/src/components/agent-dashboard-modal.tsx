@@ -682,7 +682,7 @@ function AgentSkillCards({ skillMd, skills, agentName }: {
   skills: SpecialistSkill[];
   agentName: string;
 }) {
-  const [expanded, setExpanded] = useState<string | null>(null);
+  const [modalSkill, setModalSkill] = useState<SkillCardItem | null>(null);
 
   const allSkills = useMemo((): SkillCardItem[] => {
     const items: SkillCardItem[] = [];
@@ -725,55 +725,142 @@ function AgentSkillCards({ skillMd, skills, agentName }: {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs text-slate">
-          SKILL {agentName} — {allSkills.length} skills dari Central Agent + web extraction.
-        </p>
-        {skillMd.trim() ? (
-          <button
-            type="button"
-            className="shrink-0 rounded border border-white/15 bg-white/5 px-2 py-1 text-[10px] text-electric hover:bg-white/10"
-            onClick={() => void navigator.clipboard.writeText(skillMd)}
-          >
-            Copy raw
-          </button>
-        ) : null}
+    <>
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs text-slate">
+            SKILL {agentName} — {allSkills.length} skills dari Central Agent + web extraction.
+          </p>
+          {skillMd.trim() ? (
+            <button
+              type="button"
+              className="shrink-0 rounded border border-white/15 bg-white/5 px-2 py-1 text-[10px] text-electric hover:bg-white/10"
+              onClick={() => void navigator.clipboard.writeText(skillMd)}
+            >
+              Copy raw
+            </button>
+          ) : null}
+        </div>
+
+        <div className="grid gap-2 sm:grid-cols-3">
+          {allSkills.map((sk) => (
+            <button
+              key={sk.id}
+              type="button"
+              onClick={() => setModalSkill(sk)}
+              className={`flex items-center gap-2 rounded-xl border p-3 text-left transition ${skillKindStyle(sk.kind)}`}
+            >
+              {skillKindIcon(sk.kind)}
+              <div className="flex-1 min-w-0">
+                <span className="block truncate text-xs font-semibold text-white">{sk.label}</span>
+                <span className="text-[10px] text-slate">{skillKindLabel(sk.kind)}</span>
+              </div>
+              <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate" />
+            </button>
+          ))}
+        </div>
       </div>
 
-      <div className="grid gap-2 sm:grid-cols-3">
-        {allSkills.map((sk) => {
-          const isOpen = expanded === sk.id;
-          return (
-            <div
-              key={sk.id}
-              className={`rounded-xl border transition ${skillKindStyle(sk.kind)} ${isOpen ? "sm:col-span-3" : ""}`}
-            >
-              <button
-                type="button"
-                onClick={() => setExpanded(isOpen ? null : sk.id)}
-                className="flex w-full items-center gap-2 p-3 text-left"
-              >
-                {skillKindIcon(sk.kind)}
-                <div className="flex-1 min-w-0">
-                  <span className="block truncate text-xs font-semibold text-white">{sk.label}</span>
-                  <span className="text-[10px] text-slate">{skillKindLabel(sk.kind)}</span>
-                </div>
-                {isOpen ? <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate" />}
-              </button>
-              {isOpen && (
-                <div className="border-t border-white/10 px-3 pb-3">
-                  <p className="py-2 text-[11px] text-slate-300">{sk.description}</p>
-                  {sk.instructions ? (
-                    <pre className="max-h-[min(50vh,480px)] overflow-auto whitespace-pre-wrap rounded-lg border border-white/5 bg-black/40 p-3 font-mono text-[11px] leading-relaxed text-slate-200">
-                      {sk.instructions}
-                    </pre>
-                  ) : null}
-                </div>
-              )}
+      {modalSkill && (
+        <SkillDetailModal skill={modalSkill} onClose={() => setModalSkill(null)} />
+      )}
+    </>
+  );
+}
+
+function SkillDetailModal({ skill, onClose }: { skill: SkillCardItem; onClose: () => void }) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className="relative mx-4 flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-white/15 bg-[#0d1117] shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <header className={`flex items-center gap-3 border-b border-white/10 px-5 py-4 ${
+          skill.kind === "touch" ? "bg-cyan-500/10" :
+          skill.kind === "generate" ? "bg-amber-500/10" :
+          skill.kind === "orchestrate" ? "bg-violet-500/10" : "bg-white/5"
+        }`}>
+          {skillKindIcon(skill.kind)}
+          <div className="flex-1 min-w-0">
+            <h3 className="text-sm font-bold text-white">{skill.label}</h3>
+            <p className="text-[11px] text-slate">{skillKindLabel(skill.kind)}</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg p-1.5 text-slate hover:bg-white/10 hover:text-white"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </header>
+
+        <div className="flex-1 overflow-auto px-5 py-4 space-y-4">
+          <p className="text-[13px] leading-relaxed text-slate-200">{skill.description}</p>
+
+          {skill.instructions ? (
+            <div className="space-y-3">
+              {skill.instructions.split("\n\n").map((section, i) => {
+                const lines = section.split("\n");
+                const firstLine = lines[0]?.trim() ?? "";
+                const isHeading = firstLine.length < 60 && !firstLine.includes(".") && lines.length > 1;
+
+                if (isHeading) {
+                  return (
+                    <div key={i}>
+                      <h4 className="mb-1.5 text-xs font-bold uppercase tracking-wider text-electric">{firstLine}</h4>
+                      <div className="space-y-1">
+                        {lines.slice(1).map((line, j) => {
+                          const trimmed = line.trim();
+                          if (!trimmed) return null;
+                          const isBullet = trimmed.startsWith("- ");
+                          const isNumbered = /^\d+\./.test(trimmed);
+                          return (
+                            <p key={j} className={`text-[12px] leading-relaxed text-slate-300 ${isBullet || isNumbered ? "pl-3" : ""}`}>
+                              {trimmed}
+                            </p>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div key={i} className="space-y-1">
+                    {lines.map((line, j) => {
+                      const trimmed = line.trim();
+                      if (!trimmed) return null;
+                      return (
+                        <p key={j} className="text-[12px] leading-relaxed text-slate-300">{trimmed}</p>
+                      );
+                    })}
+                  </div>
+                );
+              })}
             </div>
-          );
-        })}
+          ) : (
+            <p className="text-xs text-slate">Belum ada instruksi detail untuk skill ini.</p>
+          )}
+        </div>
+
+        <footer className="flex items-center justify-between border-t border-white/10 px-5 py-3">
+          <span className="text-[10px] text-slate">Skill extracted by Central Agent</span>
+          {skill.instructions ? (
+            <button
+              type="button"
+              onClick={() => void navigator.clipboard.writeText(`# ${skill.label}\n\n${skill.instructions}`)}
+              className="rounded border border-white/15 bg-white/5 px-3 py-1 text-[10px] text-electric hover:bg-white/10"
+            >
+              Copy skill
+            </button>
+          ) : null}
+        </footer>
       </div>
     </div>
   );

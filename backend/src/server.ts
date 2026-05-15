@@ -8,6 +8,7 @@ import { logger } from "./logging";
 import { runMission } from "./agent/mother-agent";
 import { tavilyExtractOne } from "./capabilities/tavily-extract-one";
 import { getPublicRuntimeDiagnostics } from "./public-runtime-diagnostics";
+import { getTelegramBotStatus, startTelegramBot, stopTelegramBot } from "./telegram/bot";
 import {
   deleteAllCanvasAgents,
   deleteCanvasAgent,
@@ -206,7 +207,37 @@ app.post("/api/missions/stream", async (req, res) => {
   }
 });
 
+app.get("/api/telegram/status", (_req, res) => {
+  res.json(getTelegramBotStatus());
+});
+
+const telegramTokenSchema = z.object({
+  token: z.string().min(20).max(200),
+});
+
+app.post("/api/telegram/start", async (req, res) => {
+  const parsed = telegramTokenSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ ok: false, error: "Token tidak valid" });
+  }
+  const result = await startTelegramBot(parsed.data.token);
+  return res.json(result);
+});
+
+app.post("/api/telegram/stop", async (_req, res) => {
+  await stopTelegramBot();
+  return res.json({ ok: true });
+});
+
 const port = Number(process.env.PORT || 4000);
 app.listen(port, () => {
   logger.info(`Backend running on http://localhost:${port}`);
+
+  const telegramToken = process.env.TELEGRAM_BOT_TOKEN?.trim();
+  if (telegramToken) {
+    startTelegramBot(telegramToken).then((r) => {
+      if (r.ok) logger.info({ username: r.username }, "Telegram bot auto-started from env");
+      else logger.warn({ error: r.error }, "Telegram bot auto-start failed");
+    });
+  }
 });

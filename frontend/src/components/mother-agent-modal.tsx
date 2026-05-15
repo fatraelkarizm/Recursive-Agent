@@ -2,8 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { BookOpen, ChevronDown, ChevronRight, Globe, Layers, Loader2, Search, Wrench, X, Zap } from "lucide-react";
+import { MessageCircle } from "lucide-react";
 import { MotherAgentManagement } from "@/components/mother-agent-management";
-import { fetchRuntimeDiagnostics, previewExtract } from "@/lib/api";
+import { fetchRuntimeDiagnostics, fetchTelegramStatus, previewExtract, startTelegramBot, stopTelegramBot, type TelegramBotStatus } from "@/lib/api";
 import type { CanvasViewMode } from "@/lib/canvas-agent-prefs";
 import type {
   FleetOrchestrationSummary,
@@ -115,6 +116,11 @@ export function MotherAgentModal({
   const [svcTitle, setSvcTitle] = useState<string | null>(null);
   const [svcErr, setSvcErr] = useState<string | null>(null);
 
+  const [telegramStatus, setTelegramStatus] = useState<TelegramBotStatus | null>(null);
+  const [telegramToken, setTelegramToken] = useState("");
+  const [telegramLoading, setTelegramLoading] = useState(false);
+  const [telegramErr, setTelegramErr] = useState<string | null>(null);
+
   useEffect(() => {
     if (!open) return;
     const id = requestAnimationFrame(() => setLocal(bundle));
@@ -153,6 +159,15 @@ export function MotherAgentModal({
       cancelled = true;
       cancelAnimationFrame(startId);
     };
+  }, [open, tab]);
+
+  useEffect(() => {
+    if (!open || tab !== "services") return;
+    let cancelled = false;
+    fetchTelegramStatus()
+      .then((s) => { if (!cancelled) setTelegramStatus(s); })
+      .catch(() => {});
+    return () => { cancelled = true; };
   }, [open, tab]);
 
   useEffect(() => {
@@ -410,6 +425,91 @@ export function MotherAgentModal({
               ) : (
                 <p className="text-sm text-slate">Belum ada hasil extract.</p>
               )}
+
+              <div className="border-t border-white/10 pt-4">
+                <div className="flex items-start gap-2 rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-3 text-sm text-slate">
+                  <MessageCircle className="mt-0.5 h-5 w-5 shrink-0 text-cyan-300" aria-hidden />
+                  <div>
+                    <p>
+                      <strong className="text-white">Telegram Bot</strong> — terima misi langsung dari Telegram.
+                      Buat bot via <a href="https://t.me/BotFather" target="_blank" rel="noreferrer" className="text-cyan-300 underline">@BotFather</a>,
+                      paste token di bawah, klik Connect.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-3 flex items-end gap-2">
+                  <div className="flex-1">
+                    <label className="text-xs font-semibold text-slate">Bot Token</label>
+                    <input
+                      value={telegramToken}
+                      onChange={(e) => setTelegramToken(e.target.value)}
+                      placeholder="123456:ABCdef..."
+                      className="mt-1 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 font-mono text-sm text-white focus:border-cyan-500/50"
+                    />
+                  </div>
+                  {telegramStatus?.running ? (
+                    <button
+                      type="button"
+                      disabled={telegramLoading}
+                      onClick={async () => {
+                        setTelegramLoading(true);
+                        setTelegramErr(null);
+                        try {
+                          await stopTelegramBot();
+                          setTelegramStatus({ running: false, botUsername: null, token: null });
+                        } catch {
+                          setTelegramErr("Gagal stop bot");
+                        } finally {
+                          setTelegramLoading(false);
+                        }
+                      }}
+                      className="shrink-0 rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-300 hover:bg-red-500/20 disabled:opacity-40"
+                    >
+                      Disconnect
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={telegramLoading || telegramToken.trim().length < 20}
+                      onClick={async () => {
+                        setTelegramLoading(true);
+                        setTelegramErr(null);
+                        try {
+                          const res = await startTelegramBot(telegramToken.trim());
+                          if (res.ok) {
+                            setTelegramStatus({ running: true, botUsername: res.username ?? null, token: telegramToken.slice(0, 8) + "..." });
+                            setTelegramToken("");
+                          } else {
+                            setTelegramErr(res.error ?? "Token tidak valid");
+                          }
+                        } catch {
+                          setTelegramErr("Gagal konek ke backend");
+                        } finally {
+                          setTelegramLoading(false);
+                        }
+                      }}
+                      className="shrink-0 rounded-xl bg-cyan-500 px-4 py-2 text-sm font-semibold text-white hover:brightness-110 disabled:opacity-40"
+                    >
+                      {telegramLoading ? "Connecting..." : "Connect"}
+                    </button>
+                  )}
+                </div>
+
+                {telegramErr && (
+                  <p className="mt-2 rounded-lg border border-amber-500/30 bg-amber-950/30 px-3 py-2 text-sm text-amber-100">
+                    {telegramErr}
+                  </p>
+                )}
+
+                {telegramStatus?.running && (
+                  <div className="mt-3 flex items-center gap-2 rounded-lg border border-cyan-500/20 bg-cyan-500/5 px-3 py-2">
+                    <span className="h-2 w-2 rounded-full bg-green-400 animate-pulse" />
+                    <span className="text-xs text-white font-semibold">@{telegramStatus.botUsername}</span>
+                    <span className="text-xs text-slate">— Online, menerima misi dari Telegram</span>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -549,7 +649,7 @@ function centralKindLabel(kind: string) {
 }
 
 function CentralSkillCards({ centralSkillMd, specialists }: { centralSkillMd: string | null; specialists: SpecialistAgentProfile[] }) {
-  const [expanded, setExpanded] = useState<string | null>(null);
+  const [modalSkill, setModalSkill] = useState<CentralSkillItem | null>(null);
 
   const allSkills = useMemo((): CentralSkillItem[] => {
     const skills: CentralSkillItem[] = [];
@@ -601,55 +701,136 @@ function CentralSkillCards({ centralSkillMd, specialists }: { centralSkillMd: st
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs text-slate">
-          SKILL Central Agent — {allSkills.length} skills dari {specialists.length} specialist + web extraction.
-        </p>
-        {centralSkillMd?.trim() ? (
-          <button
-            type="button"
-            className="shrink-0 rounded border border-white/15 bg-white/5 px-2 py-1 text-[10px] text-violet-300 hover:bg-white/10"
-            onClick={() => void navigator.clipboard.writeText(centralSkillMd)}
-          >
-            Copy raw
-          </button>
-        ) : null}
+    <>
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs text-slate">
+            SKILL Central Agent — {allSkills.length} skills dari {specialists.length} specialist + web extraction.
+          </p>
+          {centralSkillMd?.trim() ? (
+            <button
+              type="button"
+              className="shrink-0 rounded border border-white/15 bg-white/5 px-2 py-1 text-[10px] text-violet-300 hover:bg-white/10"
+              onClick={() => void navigator.clipboard.writeText(centralSkillMd)}
+            >
+              Copy raw
+            </button>
+          ) : null}
+        </div>
+
+        <div className="grid gap-2 sm:grid-cols-3">
+          {allSkills.map((sk) => (
+            <button
+              key={sk.id}
+              type="button"
+              onClick={() => setModalSkill(sk)}
+              className={`flex items-center gap-2 rounded-xl border p-3 text-left transition ${centralKindStyle(sk.kind)}`}
+            >
+              {centralKindIcon(sk.kind)}
+              <div className="flex-1 min-w-0">
+                <span className="block truncate text-xs font-semibold text-white">{sk.label}</span>
+                <span className="text-[10px] text-slate">{centralKindLabel(sk.kind)}{sk.agentSource ? ` · ${sk.agentSource}` : ""}</span>
+              </div>
+              <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate" />
+            </button>
+          ))}
+        </div>
       </div>
 
-      <div className="grid gap-2 sm:grid-cols-3">
-        {allSkills.map((sk) => {
-          const isOpen = expanded === sk.id;
-          return (
-            <div
-              key={sk.id}
-              className={`rounded-xl border transition ${centralKindStyle(sk.kind)} ${isOpen ? "sm:col-span-3" : ""}`}
-            >
-              <button
-                type="button"
-                onClick={() => setExpanded(isOpen ? null : sk.id)}
-                className="flex w-full items-center gap-2 p-3 text-left"
-              >
-                {centralKindIcon(sk.kind)}
-                <div className="flex-1 min-w-0">
-                  <span className="block truncate text-xs font-semibold text-white">{sk.label}</span>
-                  <span className="text-[10px] text-slate">{centralKindLabel(sk.kind)}{sk.agentSource ? ` · ${sk.agentSource}` : ""}</span>
-                </div>
-                {isOpen ? <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate" />}
-              </button>
-              {isOpen && (
-                <div className="border-t border-white/10 px-3 pb-3">
-                  <p className="py-2 text-[11px] text-slate-300">{sk.description}</p>
-                  {sk.instructions ? (
-                    <pre className="max-h-[min(50vh,480px)] overflow-auto whitespace-pre-wrap rounded-lg border border-white/5 bg-black/40 p-3 font-mono text-[11px] leading-relaxed text-slate-200">
-                      {sk.instructions}
-                    </pre>
-                  ) : null}
-                </div>
-              )}
+      {modalSkill && (
+        <CentralSkillDetailModal skill={modalSkill} onClose={() => setModalSkill(null)} />
+      )}
+    </>
+  );
+}
+
+function CentralSkillDetailModal({ skill, onClose }: { skill: CentralSkillItem; onClose: () => void }) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className="relative mx-4 flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-white/15 bg-[#0d1117] shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <header className={`flex items-center gap-3 border-b border-white/10 px-5 py-4 ${
+          skill.kind === "touch" ? "bg-cyan-500/10" :
+          skill.kind === "generate" ? "bg-amber-500/10" :
+          skill.kind === "orchestrate" ? "bg-violet-500/10" : "bg-white/5"
+        }`}>
+          {centralKindIcon(skill.kind)}
+          <div className="flex-1 min-w-0">
+            <h3 className="text-sm font-bold text-white">{skill.label}</h3>
+            <p className="text-[11px] text-slate">{centralKindLabel(skill.kind)}{skill.agentSource ? ` · dari ${skill.agentSource}` : ""}</p>
+          </div>
+          <button type="button" onClick={onClose} className="rounded-lg p-1.5 text-slate hover:bg-white/10 hover:text-white">
+            <X className="h-4 w-4" />
+          </button>
+        </header>
+
+        <div className="flex-1 overflow-auto px-5 py-4 space-y-4">
+          <p className="text-[13px] leading-relaxed text-slate-200">{skill.description}</p>
+
+          {skill.instructions ? (
+            <div className="space-y-3">
+              {skill.instructions.split("\n\n").map((section, i) => {
+                const lines = section.split("\n");
+                const firstLine = lines[0]?.trim() ?? "";
+                const isHeading = firstLine.length < 60 && !firstLine.includes(".") && lines.length > 1;
+
+                if (isHeading) {
+                  return (
+                    <div key={i}>
+                      <h4 className="mb-1.5 text-xs font-bold uppercase tracking-wider text-electric">{firstLine}</h4>
+                      <div className="space-y-1">
+                        {lines.slice(1).map((line, j) => {
+                          const trimmed = line.trim();
+                          if (!trimmed) return null;
+                          const isBullet = trimmed.startsWith("- ");
+                          const isNumbered = /^\d+\./.test(trimmed);
+                          return (
+                            <p key={j} className={`text-[12px] leading-relaxed text-slate-300 ${isBullet || isNumbered ? "pl-3" : ""}`}>
+                              {trimmed}
+                            </p>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div key={i} className="space-y-1">
+                    {lines.map((line, j) => {
+                      const trimmed = line.trim();
+                      if (!trimmed) return null;
+                      return <p key={j} className="text-[12px] leading-relaxed text-slate-300">{trimmed}</p>;
+                    })}
+                  </div>
+                );
+              })}
             </div>
-          );
-        })}
+          ) : (
+            <p className="text-xs text-slate">Belum ada instruksi detail untuk skill ini.</p>
+          )}
+        </div>
+
+        <footer className="flex items-center justify-between border-t border-white/10 px-5 py-3">
+          <span className="text-[10px] text-slate">Skill extracted by Central Agent</span>
+          {skill.instructions ? (
+            <button
+              type="button"
+              onClick={() => void navigator.clipboard.writeText(`# ${skill.label}\n\n${skill.instructions}`)}
+              className="rounded border border-white/15 bg-white/5 px-3 py-1 text-[10px] text-violet-300 hover:bg-white/10"
+            >
+              Copy skill
+            </button>
+          ) : null}
+        </footer>
       </div>
     </div>
   );

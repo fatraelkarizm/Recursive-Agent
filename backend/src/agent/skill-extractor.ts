@@ -59,11 +59,12 @@ async function findGitHubSkillFiles(topic: string): Promise<ExtractedSkillDoc[]>
     `site:github.com cursor rules "${topic}" .mdc OR .md`,
   ];
 
+  const allResults = await Promise.all(queries.map((q) => tavilySearchUrls(q, 6)));
+
   const urls: Array<{ url: string; title: string; source: ExtractedSkillDoc["source"] }> = [];
   const seen = new Set<string>();
 
-  for (const q of queries) {
-    const results = await tavilySearchUrls(q, 6);
+  for (const results of allResults) {
     for (const r of results) {
       const norm = r.url.replace(/[#?].*$/, "");
       if (seen.has(norm)) continue;
@@ -108,11 +109,12 @@ async function findDocSkills(topic: string): Promise<ExtractedSkillDoc[]> {
     `"${topic}" npm package README skills`,
   ];
 
+  const allDocResults = await Promise.all(queries.map((q) => tavilySearchUrls(q, 5)));
+
   const urls: Array<{ url: string; title: string; source: ExtractedSkillDoc["source"] }> = [];
   const seen = new Set<string>();
 
-  for (const q of queries) {
-    const results = await tavilySearchUrls(q, 5);
+  for (const results of allDocResults) {
     for (const r of results) {
       const norm = r.url.replace(/[#?].*$/, "");
       if (seen.has(norm)) continue;
@@ -155,11 +157,12 @@ async function findRealtimeKnowledge(topic: string): Promise<ExtractedSkillDoc[]
     `${topic} developer workflow automation skills`,
   ];
 
+  const allRtResults = await Promise.all(queries.map((q) => tavilySearchUrls(q, 5)));
+
   const urls: Array<{ url: string; title: string }> = [];
   const seen = new Set<string>();
 
-  for (const q of queries) {
-    const results = await tavilySearchUrls(q, 5);
+  for (const results of allRtResults) {
     for (const r of results) {
       const norm = r.url.replace(/[#?].*$/, "");
       if (seen.has(norm)) continue;

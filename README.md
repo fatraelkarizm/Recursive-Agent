@@ -1,194 +1,265 @@
 # Recursive Agent
 
-**AI agents shouldn't be one-size-fits-all. They should be purpose-built, knowledge-rich, and continuously improving.**
+**A Central Agent that turns one mission into a reusable team of specialist agents for solopreneurs and non-technical builders.**
+
+Recursive Agent is built for people who want to run a one-person company with AI support, but do not want to manually design prompts, tools, workflows, or agent architectures.
+
+Instead of only generating a final artifact, Recursive Agent produces the agents behind the work: their roles, skills, knowledge, tools, sub-agents, and review loops.
 
 ---
 
+## Inspiration
+
+Most agentic tools today are still developer-centric.
+
+They are powerful, but they often assume the user understands prompts, APIs, workflows, repositories, tool routing, and orchestration. OpenClaw inspired us because it shows how powerful agent orchestration can be. But we wanted to ask a different question:
+
+**What would agentic orchestration look like for non-technical people?**
+
+Recursive Agent is our answer.
+
+We wanted to make agent creation accessible to solopreneurs, indie builders, creators, and small teams who want to build a one-person company with the help of specialist AI agents.
+
+Instead of asking a non-technical user to configure workflows or manually design agents, Recursive Agent starts from a simple mission. The Central Agent researches the web, extracts fresh skills, creates specialist agents, runs a scout-worker-reviewer fleet, reviews the result, and packages the output as reusable agent knowledge.
+
+The goal is not just to automate one task. The goal is to help one person create a small expert team around their idea.
+
 ## The Problem
 
-Today's AI agents are **static and generic**. You get a chatbot that can do a little bit of everything but masters nothing. Want a code reviewer? Same generic model. Want a market researcher? Same generic model. Want a content strategist? Same generic model.
+AI agents are getting more capable, but they are still hard to operationalize.
 
-The real world doesn't work like that. **Specialists outperform generalists.** A senior code reviewer thinks differently than a market analyst. They have different frameworks, different vocabularies, different quality standards.
+For developers, this usually means wiring APIs, prompts, tools, memory, and orchestration code. For non-technical builders, it often means getting stuck with one generic chatbot that can do a little bit of everything but does not behave like a real specialist.
 
-But building specialized agents requires:
-- Developer skills most people don't have
-- Manual prompt engineering that takes hours
-- Static skills that go stale the moment you write them
-- No quality assurance — you get whatever the model gives you
+That creates four problems:
 
-**What if you could describe what you need in plain language, and get back a team of specialists with real-world expertise — extracted live from the internet?**
+- **Generic output:** one agent tries to do every job.
+- **High setup cost:** useful agent systems still require technical configuration.
+- **Stale knowledge:** hardcoded prompts age quickly.
+- **Weak quality control:** many agents answer once and stop, even when the output needs rework.
+
+Solopreneurs need something different: not a chatbot, but a small specialist team that can be created from a business mission.
 
 ## The Solution
 
-Recursive Agent is a **self-improving multi-agent orchestrator** that produces specialist agents on demand.
+Recursive Agent is a self-improving multi-agent orchestrator that produces specialist agents on demand.
 
-Tell it what you need. It researches the internet in real-time, extracts skills from GitHub repos, documentation, and best practices, then assembles a squad of specialist agents — each with deeply injected domain knowledge.
+You describe a mission in plain language. The Central Agent then:
 
-Then it reviews their output against industry standards. If quality isn't good enough, it sends them back to rework. Automatically. Until the output is actually useful.
+1. recalls relevant memory from past missions,
+2. researches the web with Tavily,
+3. extracts fresh skills from docs, GitHub, and best practices,
+4. designs a specialist squad,
+5. injects reusable `SKILL.md`-style instructions,
+6. runs a scout-worker-reviewer fleet,
+7. reviews the output against quality standards,
+8. reworks weak outputs within a bounded loop,
+9. saves the result as an inspectable agent package.
 
+In simple terms:
+
+```text
+Mission -> Central Agent -> Specialist Agents -> Autonomous Review Loop -> Reusable Agent Package
 ```
-You: "Build me a team to audit our API security"
+
+## Example
+
+```text
+You:
+"Build me a team to launch and validate a niche SaaS idea."
 
 Recursive Agent:
-  → Researches OWASP, API security best practices, pentesting frameworks
-  → Extracts 14 skills from GitHub SKILL.md files and docs
-  → Produces 3 specialists: Security Auditor, API Analyst, Remediation Planner
-  → Runs scout → worker → reviewer fleet
-  → Reviews output quality (iteration 1: REWORK, iteration 2: PASS)
-  → Delivers industry-standard security audit report
-  → Saves learnings to memory for next time
+- researches market validation, landing page patterns, pricing, and onboarding
+- extracts relevant skills from current web sources and docs
+- creates specialist agents such as:
+  - Market Research Scout
+  - Landing Page Builder
+  - Pricing Strategist
+  - Launch Reviewer
+- runs the fleet in a scout -> worker -> reviewer pattern
+- reviews weak outputs and sends them back for rework
+- produces an agent package the founder can inspect, reuse, and improve
 ```
 
 ## How It Works
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     RECURSIVE AGENT                         │
-│                                                             │
-│  ┌──────────┐    ┌──────────┐    ┌──────────┐              │
-│  │  Memory   │    │   Web    │    │  Skill   │              │
-│  │  Recall   │───▶│ Research │───▶│ Extract  │              │
-│  │  (Mem0)   │    │ (Tavily) │    │ (GitHub) │              │
-│  └──────────┘    └──────────┘    └──────────┘              │
-│       │                               │                     │
-│       ▼                               ▼                     │
-│  ┌──────────────────────────────────────────┐              │
-│  │         CENTRAL AGENT (Orchestrator)      │              │
-│  │  Synthesize squad • Inject skills • Review│              │
-│  └──────────────────────────────────────────┘              │
-│       │                                                     │
-│       ▼                                                     │
-│  ┌────────┐  ┌────────┐  ┌────────┐  ┌────────┐           │
-│  │Agent A │  │Agent B │  │Agent C │  │Agent N │           │
-│  │Frontend│  │Backend │  │  Data  │  │  ...   │           │
-│  │12 skills│ │9 skills│  │7 skills│  │        │           │
-│  └────┬───┘  └────┬───┘  └────┬───┘  └────────┘           │
-│       │           │           │                             │
-│       ▼           ▼           ▼                             │
-│  ┌─────────────────────────────────┐                       │
-│  │   Fleet: Scout → Worker → Reviewer                      │
-│  │   Auto-review loop (max 3 iterations)                   │
-│  │   Until industry-standard quality ✓                     │
-│  └─────────────────────────────────┘                       │
-│       │                                                     │
-│       ▼                                                     │
-│  ┌──────────┐    ┌──────────────┐                          │
-│  │  Quality  │    │   Memory     │                          │
-│  │  Review   │    │   Save       │                          │
-│  │ pass/fail │    │  (learns)    │                          │
-│  └──────────┘    └──────────────┘                          │
-└─────────────────────────────────────────────────────────────┘
+```text
++-------------------+
+| User Mission      |
++---------+---------+
+          |
+          v
++-------------------+     +-------------------+
+| Memory Recall     |     | Tavily Research   |
+| Mem0              |     | Web + docs        |
++---------+---------+     +---------+---------+
+          |                         |
+          +-----------+-------------+
+                      |
+                      v
+              +---------------+
+              | Central Agent |
+              | plan + create |
+              +-------+-------+
+                      |
+                      v
+          +-------------------------+
+          | Specialist Agent Squad  |
+          | roles + skills + tools  |
+          +-----------+-------------+
+                      |
+                      v
+        +-----------------------------+
+        | Scout -> Worker -> Reviewer |
+        | bounded autonomous loop     |
+        +-------------+---------------+
+                      |
+                      v
+          +-------------------------+
+          | Reusable Agent Package  |
+          | SKILL.md + README + log |
+          +-------------------------+
 ```
 
-### The Pipeline
+## Core Pipeline
 
 | Step | What Happens |
-|------|-------------|
-| **1. Memory Recall** | Searches past missions via Mem0 — learns from every interaction |
-| **2. Web Research** | Tavily Search finds current trends, docs, and best practices |
-| **3. Skill Extraction** | Discovers SKILL.md files, GitHub repos, npm packages, awesome-lists |
-| **4. Squad Synthesis** | LLM designs a team of specialists based on mission needs |
-| **5. Skill Injection** | Each agent gets detailed, actionable skill instructions — not generic prompts |
-| **6. Fleet Execution** | Scout → Worker → Reviewer pattern via OpenClaw CLI |
-| **7. Auto-Review Loop** | LLM reviewer evaluates against industry standards, sends back for rework if needed |
-| **8. Memory Save** | Stores results so next mission benefits from past learnings |
+| --- | --- |
+| Memory Recall | Searches past missions through Mem0 so the system can reuse prior learnings. |
+| Web Research | Uses Tavily to gather current references, documentation, and best practices. |
+| Skill Extraction | Converts useful source material into practical agent skills. |
+| Squad Synthesis | The Central Agent designs specialist agents for the mission. |
+| Skill Injection | Each agent receives reusable, role-specific instructions. |
+| Fleet Execution | Sub-agents run in a scout, worker, and reviewer pattern. |
+| Auto-Review Loop | Weak outputs are sent back for rework within a bounded iteration limit. |
+| Memory Save | Results are persisted for future missions. |
 
 ## What Makes This Different
 
-| Traditional Agents | Recursive Agent |
-|---|---|
-| Static skills hardcoded by developer | Skills extracted live from the internet |
-| One generic model for everything | Purpose-built specialists per mission |
-| Single-pass output, take it or leave it | Auto-review loop until quality passes |
-| No memory between sessions | Persistent memory — gets smarter over time |
-| Developer-only configuration | Plain language mission input |
-| Black box execution | Visual mission control dashboard |
+| Traditional Agent Tools | Recursive Agent |
+| --- | --- |
+| Built mainly for developers | Designed for non-technical builders and solopreneurs |
+| One generic agent | Mission-specific specialist agents |
+| Manual prompt and workflow setup | Plain-language mission input |
+| Static instructions | Fresh web knowledge and extracted skills |
+| Single-pass generation | Bounded autonomous review and rework loop |
+| Final artifact only | Reusable agent package plus final report |
+| Black-box execution | Visual mission canvas and inspectable agent profiles |
 
 ## Features
 
-### Real-time Skill Extraction
-Agents don't rely on pre-programmed knowledge. Before every mission, the system searches GitHub, documentation sites, npm packages, and best practice guides — then injects that knowledge directly into each agent's prompt.
+### Central Agent Orchestration
 
-### Auto-Review Quality Loop
-Output is reviewed against industry standards by a dedicated reviewer agent. If quality is insufficient, failing agents are automatically sent back with specific feedback. The loop continues until all agents pass or max iterations are reached.
+The Central Agent is responsible for planning, research, squad creation, skill injection, review, and final packaging.
+
+### Specialist Agent Generation
+
+Each mission produces purpose-built agents with roles, tools, skills, system instructions, README content, and `SKILL.md`-style capability documents.
+
+### Real-Time Skill Discovery
+
+Before generating the agents, the system searches web sources and extracts knowledge from docs, GitHub, package references, and best-practice material.
+
+### Bounded Autonomous Loop
+
+The fleet can review its own outputs and rework failing sub-agent results. The loop is intentionally bounded so the system remains demo-safe and does not run forever.
+
+### OpenClaw Orchestration Path
+
+Recursive Agent can delegate orchestration turns through the OpenClaw CLI when available, with fallback support through OpenAI-compatible gateways.
 
 ### Visual Mission Control
-A three-column dashboard built with React Flow shows the entire agent ecosystem: who's working, what skills they have, how they're connected, and what they produced.
 
-### Multi-Channel Input
-Missions can come from the web dashboard, a Telegram bot, or the REST API. Same quality regardless of channel.
-
-### Downloadable Reports
-Every mission produces a structured report that can be downloaded as a standalone HTML file or copied as Markdown.
+The UI shows the Central Agent, specialist agents, sub-agent fleet, mission progress, skill cards, and generated reports.
 
 ### Persistent Memory
-Every mission teaches the system something new. Past learnings are recalled before future missions, making the agent recommendations better over time.
 
-### 8000+ App Integrations
-Via Zapier MCP, agents can connect to Google Sheets, Gmail, Calendar, Telegram, Slack, and thousands more.
+Mem0 support lets the Central Agent recall relevant previous missions before creating new agents.
+
+## Tech Stack
+
+- **Frontend:** Next.js, React, Tailwind CSS, React Flow, Lucide React
+- **Backend:** Node.js, Express, TypeScript
+- **Database:** PostgreSQL, Prisma
+- **Agent orchestration:** OpenClaw CLI, custom Central Agent pipeline
+- **LLM gateway:** OpenAI-compatible APIs
+- **Research:** Tavily Search and Tavily Extract
+- **Memory:** Mem0
+- **Integrations:** Telegram bot support
 
 ## Quick Start
 
 ```bash
-# Clone
 git clone https://github.com/fatraelkarizm/Recursive-Agent.git
 cd Recursive-Agent
+npm install
+```
 
-# Backend
+Create backend environment variables:
+
+```bash
 cd backend
-npm install
-cp .env.example .env   # Fill in your API keys
-npm run dev
-
-# Frontend (new terminal)
-cd frontend
-npm install
-npm run dev
+cp .env.example .env
 ```
 
-Open `http://localhost:3000` — type a mission and watch the agents come to life.
+Fill in the keys you want to use, then run:
 
-### Environment Variables
-
-| Variable | Required | Purpose |
-|----------|----------|---------|
-| `OPENAI_COMPAT_BASE_URL` | Yes | OpenAI-compatible API endpoint (e.g. SumoPod, LiteLLM) |
-| `OPENAI_COMPAT_API_KEY` | Yes | Bearer token for the LLM gateway |
-| `OPENAI_COMPAT_MODEL` | Yes | Model ID (e.g. `qwen3.6-plus`, `gemini/gemini-2.5-flash`) |
-| `TAVILY_API_KEY` | Recommended | Enables real-time web research and skill extraction |
-| `DATABASE_URL` | Recommended | PostgreSQL for mission and agent persistence |
-| `MEM0_API_KEY` | Optional | Persistent agent memory across sessions |
-| `TELEGRAM_BOT_TOKEN` | Optional | Telegram bot for mobile mission input |
-| `MISSION_MAX_LLM_CALLS` | Optional | Max LLM calls per mission (default: 30) |
-| `MISSION_MAX_RUNTIME_MS` | Optional | Max mission runtime in ms (default: 600000) |
-| `MISSION_MAX_REVIEW_CYCLES` | Optional | Max autonomous review cycles (default: 2) |
-
-## Tech Stack
-
-- **Frontend:** Next.js 16, React 19, Tailwind CSS, React Flow, Lucide
-- **Backend:** Express, TypeScript, Prisma (PostgreSQL)
-- **AI:** OpenAI-compatible gateway, OpenClaw CLI
-- **Research:** Tavily Search + Extract
-- **Memory:** Mem0 Platform
-- **Integrations:** Zapier MCP, grammY (Telegram)
-
-## Architecture
-
+```bash
+npm --workspace backend run dev
+npm --workspace frontend run dev
 ```
-frontend/           → Next.js dashboard, React Flow canvas, mission UI
+
+Open:
+
+```text
+http://localhost:3000
+```
+
+## Environment Variables
+
+| Variable | Purpose |
+| --- | --- |
+| `OPENAI_COMPAT_BASE_URL` | OpenAI-compatible gateway endpoint. |
+| `OPENAI_COMPAT_API_KEY` | API key for the LLM gateway. |
+| `OPENAI_COMPAT_MODEL` | Primary model for generation. |
+| `OPENAI_COMPAT_FALLBACK_MODEL` | Fallback model when the primary route fails. |
+| `TAVILY_API_KEY` | Enables real-time web research and source extraction. |
+| `DATABASE_URL` | PostgreSQL persistence for missions and agents. |
+| `MEM0_API_KEY` | Optional persistent memory support. |
+| `OPENCLAW_ORCHESTRATION` | Set to `1` to prefer OpenClaw orchestration, `0` to disable. |
+| `OPENCLAW_TIMEOUT_MS` | Timeout per OpenClaw call. Defaults to a demo-friendly value. |
+| `FLEET_REVIEW_MAX_ITERATIONS` | Max autonomous review iterations. Defaults to `2`, capped at `3`. |
+| `TELEGRAM_BOT_TOKEN` | Optional Telegram mission input. |
+
+## Project Structure
+
+```text
+frontend/
+  src/app/                 Next.js app shell
+  src/components/          Mission canvas, dashboards, panels
+  src/lib/                 API clients and UI helpers
+
 backend/
-  src/agent/        → Central Agent, fleet orchestrator, skill discovery, quality review
-  src/capabilities/ → Browser automation, tool routing
-  src/compat/       → OpenAI-compatible LLM gateway
-  src/memory/       → Mem0 persistent memory client
-  src/telegram/     → Telegram bot (grammY)
-  src/db/           → Prisma persistence layer
-  prisma/           → Database schema and migrations
+  src/agent/               Central Agent, fleet loop, skill discovery
+  src/compat/              OpenAI-compatible gateway
+  src/memory/              Mem0 client
+  src/db/                  Mission and agent persistence
+  src/telegram/            Telegram bot integration
+  prisma/                  Database schema
+
+docs/                      OpenClaw, setup, and architecture notes
 ```
 
-## Team
+## Why It Matters
 
-Built for **OpenClaw Agenthon 2026**.
+The future of agentic AI should not only belong to developers.
+
+Recursive Agent explores what happens when orchestration becomes accessible to people building alone: founders, creators, consultants, and operators who need leverage but do not want to become AI infrastructure engineers.
+
+It is a step toward a world where a solopreneur can describe a company-building mission and receive not just an answer, but a reusable specialist team.
+
+## Built For
+
+OpenClaw Agenthon 2026.
 
 ## License
 

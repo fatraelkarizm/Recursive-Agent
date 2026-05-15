@@ -133,7 +133,7 @@ async function runSubViaOpenAiCompat(params: {
   const user = buildSubUserPayload({ ...params, reviewFeedback: params.reviewFeedback });
 
   try {
-    const fleetTimeout = Number(process.env.FLEET_LLM_TIMEOUT_MS ?? process.env.MOTHER_LLM_TIMEOUT_MS ?? "120000");
+    const fleetTimeout = Number(process.env.FLEET_LLM_TIMEOUT_MS ?? process.env.MOTHER_LLM_TIMEOUT_MS ?? "60000");
     return await openAiCompatibleChatCompletion({
       messages: [
         { role: "system", content: system },

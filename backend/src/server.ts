@@ -249,7 +249,7 @@ app.post("/api/telegram/stop", async (_req, res) => {
 });
 
 const port = Number(process.env.PORT || 4000);
-app.listen(port, () => {
+const server = app.listen(port, () => {
   logger.info(`Backend running on http://localhost:${port}`);
 
   const telegramToken = process.env.TELEGRAM_BOT_TOKEN?.trim();
@@ -260,3 +260,8 @@ app.listen(port, () => {
     });
   }
 });
+
+server.timeout = 0;
+server.keepAliveTimeout = 0;
+server.headersTimeout = 0;
+server.requestTimeout = 0;

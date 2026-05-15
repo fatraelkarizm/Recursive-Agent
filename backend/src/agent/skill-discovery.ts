@@ -255,15 +255,22 @@ export async function discoverSkillsForMission(missionPrompt: string): Promise<S
 
   const [searchCatalog, extraction] = await Promise.all([
     (async () => {
+      const results = await Promise.all(
+        searchQueries.map(async (q) => {
+          const text = await tavilySearch(q);
+          if (!text) return null;
+          return { query: q, text };
+        })
+      );
+
       const chunks: string[] = [];
       const catalog: SpecialistSkill[] = [];
       const seen = new Set<string>();
 
-      for (const q of searchQueries) {
-        const text = await tavilySearch(q);
-        if (!text) continue;
-        chunks.push(`Query: ${q}\n${text}`);
-        for (const sk of parseSkillsFromSearchText(text, q)) {
+      for (const r of results) {
+        if (!r) continue;
+        chunks.push(`Query: ${r.query}\n${r.text}`);
+        for (const sk of parseSkillsFromSearchText(r.text, r.query)) {
           if (seen.has(sk.id)) continue;
           seen.add(sk.id);
           catalog.push(sk);

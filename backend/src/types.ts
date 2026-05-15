@@ -12,6 +12,8 @@ export type SpecialistSkill = {
   label: string;
   description: string;
   kind: "touch" | "generate" | "orchestrate" | "other";
+  /** Full instructional document for this skill (like a SKILL.md per-capability). */
+  instructions?: string;
 };
 
 export type SpecialistAgentProfile = {

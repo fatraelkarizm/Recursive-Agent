@@ -674,6 +674,7 @@ type SkillCardItem = {
   label: string;
   description: string;
   kind: string;
+  instructions?: string;
 };
 
 function AgentSkillCards({ skillMd, skills, agentName }: {
@@ -690,7 +691,7 @@ function AgentSkillCards({ skillMd, skills, agentName }: {
     for (const sk of skills) {
       if (!seen.has(sk.id)) {
         seen.add(sk.id);
-        items.push({ id: sk.id, label: sk.label, description: sk.description, kind: sk.kind });
+        items.push({ id: sk.id, label: sk.label, description: sk.description, kind: sk.kind, instructions: sk.instructions });
       }
     }
 
@@ -723,14 +724,6 @@ function AgentSkillCards({ skillMd, skills, agentName }: {
     );
   }
 
-  const byKind: Record<string, SkillCardItem[]> = {};
-  for (const sk of allSkills) {
-    const k = ["touch", "generate", "orchestrate"].includes(sk.kind) ? sk.kind : "other";
-    (byKind[k] ??= []).push(sk);
-  }
-  const kindOrder = ["touch", "generate", "orchestrate", "other"];
-  const groups = kindOrder.map((k) => ({ kind: k, items: byKind[k] ?? [] })).filter((g) => g.items.length > 0);
-
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -749,97 +742,39 @@ function AgentSkillCards({ skillMd, skills, agentName }: {
       </div>
 
       <div className="grid gap-2 sm:grid-cols-3">
-        {allSkills.slice(0, 9).map((sk) => {
+        {allSkills.map((sk) => {
           const isOpen = expanded === sk.id;
           return (
-            <button
+            <div
               key={sk.id}
-              type="button"
-              onClick={() => setExpanded(isOpen ? null : sk.id)}
-              className={`flex flex-col gap-1.5 rounded-xl border p-3 text-left transition ${skillKindStyle(sk.kind)}`}
+              className={`rounded-xl border transition ${skillKindStyle(sk.kind)} ${isOpen ? "sm:col-span-3" : ""}`}
             >
-              <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setExpanded(isOpen ? null : sk.id)}
+                className="flex w-full items-center gap-2 p-3 text-left"
+              >
                 {skillKindIcon(sk.kind)}
-                <span className="flex-1 truncate text-xs font-semibold text-white">{sk.label}</span>
-                {isOpen ? <ChevronDown className="h-3 w-3 text-slate" /> : <ChevronRight className="h-3 w-3 text-slate" />}
-              </div>
-              <span className="text-[10px] text-slate">{skillKindLabel(sk.kind)}</span>
+                <div className="flex-1 min-w-0">
+                  <span className="block truncate text-xs font-semibold text-white">{sk.label}</span>
+                  <span className="text-[10px] text-slate">{skillKindLabel(sk.kind)}</span>
+                </div>
+                {isOpen ? <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate" />}
+              </button>
               {isOpen && (
-                <p className="mt-1 border-t border-white/10 pt-2 text-[11px] leading-relaxed text-slate-200">
-                  {sk.description}
-                </p>
+                <div className="border-t border-white/10 px-3 pb-3">
+                  <p className="py-2 text-[11px] text-slate-300">{sk.description}</p>
+                  {sk.instructions ? (
+                    <pre className="max-h-[min(50vh,480px)] overflow-auto whitespace-pre-wrap rounded-lg border border-white/5 bg-black/40 p-3 font-mono text-[11px] leading-relaxed text-slate-200">
+                      {sk.instructions}
+                    </pre>
+                  ) : null}
+                </div>
               )}
-            </button>
+            </div>
           );
         })}
       </div>
-
-      {allSkills.length > 9 && (
-        <div className="space-y-2">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate">Semua skills ({allSkills.length})</p>
-          {groups.map((g) => (
-            <SkillKindGroup key={g.kind} kind={g.kind} items={g.items} expanded={expanded} onToggle={setExpanded} />
-          ))}
-        </div>
-      )}
-
-      {allSkills.length <= 9 && groups.length > 1 && (
-        <div className="flex flex-wrap gap-2 text-[10px]">
-          {groups.map((g) => (
-            <span key={g.kind} className={`rounded-full border px-2.5 py-0.5 ${skillKindStyle(g.kind)}`}>
-              {skillKindLabel(g.kind)}: {g.items.length}
-            </span>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function SkillKindGroup({ kind, items, expanded, onToggle }: {
-  kind: string;
-  items: SkillCardItem[];
-  expanded: string | null;
-  onToggle: (id: string | null) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="rounded-lg border border-white/10 bg-black/20">
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-white/5"
-      >
-        {open ? <ChevronDown className="h-3 w-3 text-slate" /> : <ChevronRight className="h-3 w-3 text-slate" />}
-        {skillKindIcon(kind)}
-        <span className="flex-1 text-xs font-semibold text-white">{skillKindLabel(kind)}</span>
-        <span className="text-[10px] font-mono text-slate">{items.length}</span>
-      </button>
-      {open && (
-        <div className="grid gap-1.5 px-3 pb-3 sm:grid-cols-3">
-          {items.map((sk) => {
-            const isExp = expanded === sk.id;
-            return (
-              <button
-                key={sk.id}
-                type="button"
-                onClick={() => onToggle(isExp ? null : sk.id)}
-                className={`flex flex-col gap-1 rounded-lg border p-2 text-left transition ${skillKindStyle(sk.kind)}`}
-              >
-                <div className="flex items-center gap-1.5">
-                  <span className="flex-1 truncate text-[11px] font-medium text-white">{sk.label}</span>
-                  {isExp ? <ChevronDown className="h-3 w-3 text-slate" /> : <ChevronRight className="h-3 w-3 text-slate" />}
-                </div>
-                {isExp && (
-                  <p className="mt-1 border-t border-white/10 pt-1.5 text-[10px] leading-relaxed text-slate-200">
-                    {sk.description}
-                  </p>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      )}
     </div>
   );
 }

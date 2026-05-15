@@ -28,17 +28,54 @@ function parseSkillsFromSearchText(raw: string, source: string): SpecialistSkill
     seen.add(id);
 
     const kind = classifySkillKind(cleaned);
+    const label = cleaned.slice(0, 80);
 
     skills.push({
       id,
-      label: cleaned.slice(0, 80),
-      description: `${cleaned.slice(0, 200)} (sumber: ${source})`,
+      label,
+      description: cleaned.slice(0, 200),
       kind,
+      instructions: buildInstructionsFromExtractedSkill(label, cleaned, kind),
     });
     if (skills.length >= 30) break;
   }
 
   return skills;
+}
+
+function buildInstructionsFromExtractedSkill(label: string, content: string, kind: string): string {
+  const kindVerb = kind === "touch" ? "riset dan ekstraksi"
+    : kind === "generate" ? "produksi dan implementasi"
+    : kind === "orchestrate" ? "orkestrasi dan koordinasi"
+    : "eksekusi";
+
+  return [
+    label,
+    "",
+    `Skill ini berfokus pada ${kindVerb}.`,
+    "",
+    "Deskripsi",
+    content,
+    "",
+    "Kapabilitas",
+    `- Melakukan ${kindVerb} terkait: ${label}`,
+    "- Menganalisis konteks dan kebutuhan sebelum eksekusi",
+    "- Menghasilkan output yang terstruktur dan actionable",
+    "- Self-review untuk memastikan kualitas output",
+    "",
+    "Framework Eksekusi",
+    "1. Analisis kebutuhan — pahami apa yang diminta terkait skill ini",
+    "2. Kumpulkan konteks — data, referensi, atau informasi yang dibutuhkan",
+    "3. Eksekusi — jalankan kapabilitas utama skill",
+    "4. Validasi — periksa output terhadap requirement",
+    "5. Refinement — perbaiki jika ada kekurangan",
+    "",
+    "Rules",
+    "- Selalu pahami konteks sebelum mulai",
+    "- Output harus spesifik dan actionable, bukan generik",
+    "- Sertakan reasoning untuk setiap keputusan yang dibuat",
+    "- Jika informasi kurang, minta klarifikasi daripada mengasumsikan",
+  ].join("\n");
 }
 
 function classifySkillKind(text: string): SpecialistSkill["kind"] {
@@ -49,7 +86,7 @@ function classifySkillKind(text: string): SpecialistSkill["kind"] {
   return "other";
 }
 
-/** Parse extracted doc content into structured skills. */
+/** Parse extracted doc content into structured skills with full instructions. */
 function parseSkillsFromDoc(doc: ExtractedSkillDoc): SpecialistSkill[] {
   const skills: SpecialistSkill[] = [];
   const seen = new Set<string>();
@@ -74,11 +111,13 @@ function parseSkillsFromDoc(doc: ExtractedSkillDoc): SpecialistSkill[] {
         if (seen.has(id) || clean.length < 10) continue;
         seen.add(id);
 
+        const kind = classifySkillKind(clean);
         skills.push({
           id,
           label: clean.slice(0, 80),
-          description: `${clean.slice(0, 200)} (dari: ${doc.source} ${doc.url.slice(0, 80)})`,
-          kind: classifySkillKind(clean),
+          description: clean.slice(0, 200),
+          kind,
+          instructions: buildDocSkillInstructions(clean, doc),
         });
         if (skills.length >= 20) break;
       }
@@ -93,17 +132,46 @@ function parseSkillsFromDoc(doc: ExtractedSkillDoc): SpecialistSkill[] {
       const id = slugId(clean) || `doc-${nanoid(4)}`;
       if (seen.has(id)) continue;
       seen.add(id);
+      const kind = classifySkillKind(clean);
       skills.push({
         id,
         label: clean.slice(0, 80),
-        description: `${clean.slice(0, 200)} (dari: ${doc.source})`,
-        kind: classifySkillKind(clean),
+        description: clean.slice(0, 200),
+        kind,
+        instructions: buildDocSkillInstructions(clean, doc),
       });
       if (skills.length >= 8) break;
     }
   }
 
   return skills;
+}
+
+function buildDocSkillInstructions(label: string, doc: ExtractedSkillDoc): string {
+  const docContent = stripMarkdownToPlainText(doc.content).slice(0, 2000);
+  const sections = docContent.split(/\n{2,}/).filter((s) => s.trim().length > 20);
+
+  const instructionParts = [
+    label,
+    "",
+    `Skill ini di-extract dari ${doc.source}.`,
+    "",
+    "Konteks",
+    ...sections.slice(0, 6).map((s) => s.trim()),
+    "",
+    "Instruksi Eksekusi",
+    "1. Pahami konteks skill ini dalam kaitannya dengan misi yang diberikan",
+    "2. Terapkan pengetahuan di atas untuk mengerjakan task yang relevan",
+    "3. Pastikan output sesuai dengan best practices yang disebutkan",
+    "4. Lakukan self-review sebelum menganggap task selesai",
+    "",
+    "Rules",
+    "- Terapkan skill ini hanya ketika relevan dengan misi",
+    "- Prioritaskan kualitas di atas kecepatan",
+    "- Jika ada ambiguitas, gunakan pengetahuan dari konteks di atas untuk mengambil keputusan",
+  ];
+
+  return instructionParts.join("\n");
 }
 
 async function tavilySearch(query: string): Promise<string> {

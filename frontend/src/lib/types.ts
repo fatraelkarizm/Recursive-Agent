@@ -9,6 +9,7 @@ export type SpecialistSkill = {
   label: string;
   description: string;
   kind: "touch" | "generate" | "orchestrate" | "other";
+  instructions?: string;
 };
 
 export type SpecialistAgentProfile = {

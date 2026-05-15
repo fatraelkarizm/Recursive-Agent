@@ -517,64 +517,16 @@ export function MotherAgentModal({
   );
 }
 
-type ParsedSkill = {
+type CentralSkillItem = {
+  id: string;
   label: string;
   description: string;
   kind: string;
-  source?: string;
+  instructions?: string;
+  agentSource?: string;
 };
 
-type SkillGroup = {
-  label: string;
-  kind: string;
-  skills: ParsedSkill[];
-};
-
-function parseSkillsFromText(text: string): ParsedSkill[] {
-  const skills: ParsedSkill[] = [];
-  const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
-
-  for (const line of lines) {
-    const dotSplit = line.match(/^(.+?)\.\s+(.+)$/);
-    if (dotSplit && dotSplit[1].length < 80 && dotSplit[2].length > 10) {
-      const label = dotSplit[1].trim();
-      const rest = dotSplit[2].trim();
-      const kindMatch = rest.match(/Jenis:\s*(\w+)/i);
-      const sourceMatch = rest.match(/\((?:sumber|dari):\s*(.+?)\)/i);
-      const kind = kindMatch?.[1] ?? "other";
-      const desc = rest
-        .replace(/Jenis:\s*\w+\.?/i, "")
-        .replace(/\((?:sumber|dari):\s*.+?\)/i, "")
-        .trim();
-      skills.push({ label, description: desc || rest, kind, source: sourceMatch?.[1] });
-    }
-  }
-
-  return skills;
-}
-
-function groupSkills(skills: ParsedSkill[]): SkillGroup[] {
-  const kindLabels: Record<string, string> = {
-    touch: "Riset dan Ekstraksi",
-    generate: "Produksi dan Generate",
-    orchestrate: "Orkestrasi dan Koordinasi",
-    other: "Lainnya"
-  };
-
-  const groups: Record<string, ParsedSkill[]> = {};
-  for (const sk of skills) {
-    const k = sk.kind in kindLabels ? sk.kind : "other";
-    (groups[k] ??= []).push(sk);
-  }
-
-  return Object.entries(groups).map(([kind, items]) => ({
-    label: kindLabels[kind] ?? kind,
-    kind,
-    skills: items
-  }));
-}
-
-function kindIcon(kind: string) {
+function centralKindIcon(kind: string) {
   const cls = "h-4 w-4 shrink-0";
   if (kind === "touch") return <Search className={`${cls} text-cyan-400`} />;
   if (kind === "generate") return <Wrench className={`${cls} text-amber-400`} />;
@@ -582,64 +534,63 @@ function kindIcon(kind: string) {
   return <Globe className={`${cls} text-slate`} />;
 }
 
-function kindBorder(kind: string) {
-  if (kind === "touch") return "border-cyan-500/30 bg-cyan-500/5";
-  if (kind === "generate") return "border-amber-500/30 bg-amber-500/5";
-  if (kind === "orchestrate") return "border-violet-500/30 bg-violet-500/5";
-  return "border-white/10 bg-white/[0.02]";
+function centralKindStyle(kind: string) {
+  if (kind === "touch") return "border-cyan-500/40 bg-cyan-500/5 hover:bg-cyan-500/10";
+  if (kind === "generate") return "border-amber-500/40 bg-amber-500/5 hover:bg-amber-500/10";
+  if (kind === "orchestrate") return "border-violet-500/40 bg-violet-500/5 hover:bg-violet-500/10";
+  return "border-white/10 bg-white/[0.03] hover:bg-white/[0.06]";
+}
+
+function centralKindLabel(kind: string) {
+  if (kind === "touch") return "Riset";
+  if (kind === "generate") return "Generate";
+  if (kind === "orchestrate") return "Orkestrasi";
+  return "Skill";
 }
 
 function CentralSkillCards({ centralSkillMd, specialists }: { centralSkillMd: string | null; specialists: SpecialistAgentProfile[] }) {
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
-  const [expandedSkills, setExpandedSkills] = useState<Set<string>>(new Set());
+  const [expanded, setExpanded] = useState<string | null>(null);
 
-  const allSkills = useMemo(() => {
-    const skills: ParsedSkill[] = [];
+  const allSkills = useMemo((): CentralSkillItem[] => {
+    const skills: CentralSkillItem[] = [];
     const seen = new Set<string>();
 
-    if (centralSkillMd) {
-      for (const sk of parseSkillsFromText(centralSkillMd)) {
-        if (!seen.has(sk.label)) {
-          seen.add(sk.label);
-          skills.push(sk);
+    for (const agent of specialists) {
+      for (const sk of agent.skills ?? []) {
+        if (!seen.has(sk.id)) {
+          seen.add(sk.id);
+          skills.push({
+            id: sk.id,
+            label: sk.label,
+            description: sk.description,
+            kind: sk.kind,
+            instructions: sk.instructions,
+            agentSource: agent.name,
+          });
         }
       }
     }
 
-    for (const agent of specialists) {
-      for (const sk of agent.skills ?? []) {
-        if (!seen.has(sk.label)) {
-          seen.add(sk.label);
-          skills.push({
-            label: sk.label,
-            description: sk.description,
-            kind: sk.kind,
-            source: `agent ${agent.name}`
-          });
+    if (centralSkillMd) {
+      const lines = centralSkillMd.split("\n").map((l) => l.trim()).filter(Boolean);
+      for (const line of lines) {
+        const m = line.match(/^(.+?)\.\s+(.+)$/);
+        if (m && m[1].length < 80 && m[2].length > 10) {
+          const label = m[1].trim();
+          const id = label.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 48);
+          if (seen.has(id)) continue;
+          seen.add(id);
+          const rest = m[2].trim();
+          const kindMatch = rest.match(/Jenis:\s*(\w+)/i);
+          const kind = kindMatch?.[1]?.toLowerCase() ?? "other";
+          const desc = rest.replace(/Jenis:\s*\w+\.?/i, "").replace(/\((?:sumber|dari):\s*.+?\)/i, "").trim();
+          skills.push({ id, label, description: desc || rest, kind });
         }
       }
     }
 
     return skills;
   }, [centralSkillMd, specialists]);
-
-  const groups = useMemo(() => groupSkills(allSkills), [allSkills]);
-
-  const toggleGroup = (kind: string) => {
-    setExpandedGroups((prev) => {
-      const next = new Set(prev);
-      if (next.has(kind)) next.delete(kind); else next.add(kind);
-      return next;
-    });
-  };
-
-  const toggleSkill = (label: string) => {
-    setExpandedSkills((prev) => {
-      const next = new Set(prev);
-      if (next.has(label)) next.delete(label); else next.add(label);
-      return next;
-    });
-  };
 
   if (allSkills.length === 0) {
     return (
@@ -653,7 +604,7 @@ function CentralSkillCards({ centralSkillMd, specialists }: { centralSkillMd: st
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-slate">
-          SKILL Central Agent. Total {allSkills.length} skills dari {specialists.length} specialist + web extraction.
+          SKILL Central Agent — {allSkills.length} skills dari {specialists.length} specialist + web extraction.
         </p>
         {centralSkillMd?.trim() ? (
           <button
@@ -661,70 +612,44 @@ function CentralSkillCards({ centralSkillMd, specialists }: { centralSkillMd: st
             className="shrink-0 rounded border border-white/15 bg-white/5 px-2 py-1 text-[10px] text-violet-300 hover:bg-white/10"
             onClick={() => void navigator.clipboard.writeText(centralSkillMd)}
           >
-            Copy raw SKILL
+            Copy raw
           </button>
         ) : null}
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {groups.map((g) => (
-          <div key={g.kind} className={`rounded-xl border p-3 ${kindBorder(g.kind)}`}>
-            <div className="flex items-center gap-2">
-              {kindIcon(g.kind)}
-              <span className="text-xs font-semibold text-white">{g.label}</span>
-            </div>
-            <p className="mt-1 text-[11px] font-mono text-electric">{g.skills.length} skills</p>
-          </div>
-        ))}
-      </div>
-
-      <div className="space-y-2">
-        {groups.map((g) => (
-          <div key={g.kind} className="rounded-xl border border-white/10 bg-black/20">
-            <button
-              type="button"
-              onClick={() => toggleGroup(g.kind)}
-              className="flex w-full items-center gap-2 px-4 py-3 text-left hover:bg-white/5"
+      <div className="grid gap-2 sm:grid-cols-3">
+        {allSkills.map((sk) => {
+          const isOpen = expanded === sk.id;
+          return (
+            <div
+              key={sk.id}
+              className={`rounded-xl border transition ${centralKindStyle(sk.kind)} ${isOpen ? "sm:col-span-3" : ""}`}
             >
-              {expandedGroups.has(g.kind) ? (
-                <ChevronDown className="h-4 w-4 text-slate" />
-              ) : (
-                <ChevronRight className="h-4 w-4 text-slate" />
+              <button
+                type="button"
+                onClick={() => setExpanded(isOpen ? null : sk.id)}
+                className="flex w-full items-center gap-2 p-3 text-left"
+              >
+                {centralKindIcon(sk.kind)}
+                <div className="flex-1 min-w-0">
+                  <span className="block truncate text-xs font-semibold text-white">{sk.label}</span>
+                  <span className="text-[10px] text-slate">{centralKindLabel(sk.kind)}{sk.agentSource ? ` · ${sk.agentSource}` : ""}</span>
+                </div>
+                {isOpen ? <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate" />}
+              </button>
+              {isOpen && (
+                <div className="border-t border-white/10 px-3 pb-3">
+                  <p className="py-2 text-[11px] text-slate-300">{sk.description}</p>
+                  {sk.instructions ? (
+                    <pre className="max-h-[min(50vh,480px)] overflow-auto whitespace-pre-wrap rounded-lg border border-white/5 bg-black/40 p-3 font-mono text-[11px] leading-relaxed text-slate-200">
+                      {sk.instructions}
+                    </pre>
+                  ) : null}
+                </div>
               )}
-              {kindIcon(g.kind)}
-              <span className="flex-1 text-sm font-semibold text-white">{g.label}</span>
-              <span className="text-xs font-mono text-slate">{g.skills.length}</span>
-            </button>
-            {expandedGroups.has(g.kind) && (
-              <div className="space-y-1 px-4 pb-3">
-                {g.skills.map((sk) => (
-                  <div key={sk.label} className="rounded-lg border border-white/5 bg-black/30">
-                    <button
-                      type="button"
-                      onClick={() => toggleSkill(sk.label)}
-                      className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-white/5"
-                    >
-                      {expandedSkills.has(sk.label) ? (
-                        <ChevronDown className="h-3 w-3 text-slate" />
-                      ) : (
-                        <ChevronRight className="h-3 w-3 text-slate" />
-                      )}
-                      <span className="flex-1 truncate text-xs text-white">{sk.label}</span>
-                    </button>
-                    {expandedSkills.has(sk.label) && (
-                      <div className="border-t border-white/5 px-3 py-2 text-[11px] text-slate">
-                        <p>{sk.description}</p>
-                        {sk.source && (
-                          <p className="mt-1 text-[10px] text-violet-300/70">Sumber: {sk.source}</p>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        ))}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

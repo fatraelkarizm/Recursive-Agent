@@ -1031,6 +1031,23 @@ function generateMissionReportHtml(opts: {
   .section-box pre{white-space:pre-wrap;font-size:12px;color:#cbd5e1;line-height:1.6}
   .badge{display:inline-block;padding:2px 10px;border-radius:100px;font-size:10px;font-weight:600}
   .footer{margin-top:48px;padding-top:16px;border-top:1px solid #1e293b;text-align:center;color:#475569;font-size:11px}
+  @media print{
+    body{background:#fff;color:#1e293b;padding:20px}
+    h1{-webkit-text-fill-color:#4c1d95;color:#4c1d95}
+    h2{color:#1e293b;border-bottom-color:#e2e8f0}
+    h3{color:#6d28d9}
+    .stat{background:#f8fafc;border-color:#e2e8f0}
+    .stat-val{color:#6d28d9}
+    .stat-label{color:#64748b}
+    .section-box{background:#f8fafc;border-color:#e2e8f0}
+    .section-box pre{color:#334155;background:#f1f5f9;border-color:#e2e8f0}
+    table{border:1px solid #e2e8f0}
+    th{border-bottom-color:#e2e8f0;color:#475569}
+    td{color:#334155;border-bottom-color:#f1f5f9}
+    pre{max-height:none!important;overflow:visible!important;page-break-inside:avoid}
+    .footer{color:#94a3b8;border-top-color:#e2e8f0}
+    @page{margin:1cm;size:A4}
+  }
 </style>
 </head>
 <body>
@@ -1098,7 +1115,25 @@ function MissionResultsTab({
   const totalSkills = new Set(specialists.flatMap((s) => s.skills.map((sk) => sk.id))).size;
   const totalSubs = specialists.reduce((n, s) => n + (s.subAgents?.length ?? 0), 0);
 
-  const handleDownload = () => {
+  const handleDownloadPdf = () => {
+    const html = generateMissionReportHtml({
+      missionId: activeMissionId ?? null,
+      missionPrompt,
+      specialists,
+      fleetSummary,
+      motherBrief,
+      motherReview,
+    });
+    const win = window.open("", "_blank");
+    if (!win) return;
+    win.document.write(html);
+    win.document.close();
+    setTimeout(() => {
+      win.print();
+    }, 600);
+  };
+
+  const handleDownloadHtml = () => {
     const html = generateMissionReportHtml({
       missionId: activeMissionId ?? null,
       missionPrompt,
@@ -1144,14 +1179,22 @@ function MissionResultsTab({
       </div>
 
       {/* Download button */}
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         <button
           type="button"
-          onClick={handleDownload}
+          onClick={handleDownloadPdf}
           className="flex items-center gap-1.5 rounded-xl bg-violet-500/20 border border-violet-500/30 px-4 py-2 text-xs font-semibold text-violet-300 hover:bg-violet-500/30 transition"
         >
           <Download className="h-3.5 w-3.5" />
-          Download Report (HTML)
+          Download PDF
+        </button>
+        <button
+          type="button"
+          onClick={handleDownloadHtml}
+          className="flex items-center gap-1.5 rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-xs font-semibold text-slate hover:bg-white/10 transition"
+        >
+          <Download className="h-3.5 w-3.5" />
+          Download HTML
         </button>
         <button
           type="button"
@@ -1161,7 +1204,7 @@ function MissionResultsTab({
           }}
           className="flex items-center gap-1.5 rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-xs font-semibold text-slate hover:bg-white/10 transition"
         >
-          Copy as Markdown
+          Copy Markdown
         </button>
       </div>
 
@@ -1179,8 +1222,8 @@ function MissionResultsTab({
       <div>
         <h4 className="mb-2 text-xs font-bold uppercase tracking-wider text-cyan-400">Squad Composition</h4>
         <div className="grid gap-2 sm:grid-cols-2">
-          {specialists.map((s) => (
-            <div key={s.name} className="rounded-xl border border-white/10 bg-black/30 p-3">
+          {specialists.map((s, idx) => (
+            <div key={`${s.name}-${s.persistedId ?? idx}`} className="rounded-xl border border-white/10 bg-black/30 p-3">
               <div className="flex items-center gap-2 mb-1">
                 <span className={`h-2 w-2 rounded-full ${s.canvasLane === "frontend" ? "bg-amber-400" : s.canvasLane === "backend" ? "bg-cyan-400" : "bg-slate"}`} />
                 <span className="text-xs font-bold text-white">{s.name}</span>

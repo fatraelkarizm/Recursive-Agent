@@ -21,7 +21,7 @@ export function mergeCanvasAgents(
       continue;
     }
     if (!id) {
-      const existingIdx = next.findIndex((a) => a.name === agent.name && a.missionId === agent.missionId);
+      const existingIdx = next.findIndex((a) => a.name === agent.name);
       if (existingIdx >= 0) {
         next[existingIdx] = agent;
         continue;

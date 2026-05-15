@@ -8,6 +8,8 @@ function randomId(length = 8): string {
 
 function inferRole(prompt: string): string {
   const lower = prompt.toLowerCase();
+  if (/(security|audit|owasp|vulnerability|pentest|threat)/i.test(lower)) return "security-audit-agent";
+  if (/(incident|response|runbook|playbook)/i.test(lower)) return "incident-response-agent";
   if (lower.includes("scrap") || lower.includes("crawl")) return "research-scraper-agent";
   if (lower.includes("code") || lower.includes("bug") || lower.includes("refactor")) return "coding-agent";
   if (lower.includes("recommend") || lower.includes("suggest")) return "recommendation-agent";
@@ -18,8 +20,13 @@ function inferRole(prompt: string): string {
   return "general-specialist-agent";
 }
 
+function isNonWebMission(p: string): boolean {
+  return /(security\s*audit|threat\s*model|penetration\s*test|vulnerability|owasp|incident\s*response|compliance|pentest|soc\s*2|iso\s*27001|gdpr|code\s*review|remediation|playbook|runbook|checklist|audit)/i.test(p);
+}
+
 function isWebStackPrompt(p: string): boolean {
-  return /(web|website|webapp|web\s*app|\bapp\b|\bui\b|\bux\b|landing|saas|cms|blog|article|e-?commerce|marketplace|dashboard|portal|next\.?js|nextjs|react|vue|svelte|html|css|frontend|back\s*end|full\s*stack|fullstack|\bapi\b|rest|graphql|database|postgres|mysql|prisma|supabase)/i.test(
+  if (isNonWebMission(p)) return false;
+  return /(web|website|webapp|web\s*app|\bapp\b|\bui\b|\bux\b|landing|saas|cms|blog|article|e-?commerce|marketplace|dashboard|portal|next\.?js|nextjs|react|vue|svelte|html|css|frontend|back\s*end|full\s*stack|fullstack|rest|graphql|database|postgres|mysql|prisma|supabase)/i.test(
     p
   );
 }

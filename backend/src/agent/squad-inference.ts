@@ -20,13 +20,8 @@ function inferRole(prompt: string): string {
   return "general-specialist-agent";
 }
 
-function isNonWebMission(p: string): boolean {
-  return /(security\s*audit|threat\s*model|penetration\s*test|vulnerability|owasp|incident\s*response|compliance|pentest|soc\s*2|iso\s*27001|gdpr|code\s*review|remediation|playbook|runbook|checklist|audit)/i.test(p);
-}
-
 function isWebStackPrompt(p: string): boolean {
-  if (isNonWebMission(p)) return false;
-  return /(web|website|webapp|web\s*app|\bapp\b|\bui\b|\bux\b|landing|saas|cms|blog|article|e-?commerce|marketplace|dashboard|portal|next\.?js|nextjs|react|vue|svelte|html|css|frontend|back\s*end|full\s*stack|fullstack|rest|graphql|database|postgres|mysql|prisma|supabase)/i.test(
+  return /(web|website|webapp|web\s*app|\bui\b|\bux\b|landing|saas|cms|blog|article|e-?commerce|marketplace|dashboard|portal|next\.?js|nextjs|react|vue|svelte|html|css|frontend|back\s*end|full\s*stack|fullstack|rest|graphql|database|postgres|mysql|prisma|supabase)/i.test(
     p
   );
 }

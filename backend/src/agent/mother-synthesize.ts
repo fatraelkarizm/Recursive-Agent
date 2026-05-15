@@ -3,8 +3,9 @@ import { z } from "zod";
 import type { MissionPayload, SpecialistAgentProfile, SubAgentDescriptor } from "../types";
 import { isOpenAiCompatConfigured, openAiCompatibleChatCompletion } from "../compat/openai-compatible-chat";
 import { buildEffectiveMissionPrompt } from "./mission-prompt";
-import { attachSpecialistArtifacts } from "./specialist-artifacts";
+import { attachSpecialistArtifacts, buildSpecialistSkills } from "./specialist-artifacts";
 import { inferSpecialistSquad } from "./squad-inference";
+import { buildSubAgents, inferSpecializations, pickOrchestrationMode } from "./specializations";
 import { logger } from "../logging";
 
 const skillSchema = z.object({
@@ -172,17 +173,98 @@ async function callMotherPlan(effectivePrompt: string, temperature: number): Pro
   return openAiCompatibleChatCompletion({
     messages: [
       { role: "system", content: SYSTEM_PROMPT },
-      { role: "user", content: effectivePrompt }
+      { role: "user", content: effectivePrompt.slice(0, 12000) }
     ],
-    maxTokens: 2800,
+    maxTokens: 4096,
     temperature,
     timeoutMs: motherLlmTimeoutMs()
   });
 }
 
 /**
+ * Smart fallback: ask LLM for just role names (simpler JSON, less likely to fail).
+ * Then build full profiles from those roles.
+ */
+async function trySmartFallback(prompt: string): Promise<SpecialistAgentProfile[] | null> {
+  if (!isOpenAiCompatConfigured()) return null;
+
+  try {
+    const raw = await openAiCompatibleChatCompletion({
+      messages: [
+        {
+          role: "system",
+          content: [
+            "Given a user mission, return 2-4 specialist agent roles that would best accomplish it.",
+            "Return ONLY a JSON array of objects. Example:",
+            '[{"name":"threat-modeler","role":"threat-modeling-specialist","purpose":"STRIDE threat modeling and risk assessment","lane":"general"}]',
+            "Rules: name=kebab-case, role=specific-to-mission, purpose=one-sentence, lane=frontend|backend|general.",
+            "DO NOT use generic roles like 'frontend-agent' or 'backend-agent'. Roles must be specific to the mission domain."
+          ].join("\n")
+        },
+        { role: "user", content: prompt.slice(0, 3000) }
+      ],
+      maxTokens: 800,
+      temperature: 0.2,
+      timeoutMs: 30000
+    });
+
+    const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
+    let candidate = (fenced?.[1] ?? raw).trim();
+    const arrStart = candidate.indexOf("[");
+    const arrEnd = candidate.lastIndexOf("]");
+    if (arrStart >= 0 && arrEnd > arrStart) {
+      candidate = candidate.slice(arrStart, arrEnd + 1);
+    }
+
+    const roles = JSON.parse(candidate) as Array<{
+      name: string;
+      role: string;
+      purpose: string;
+      lane?: string;
+    }>;
+
+    if (!Array.isArray(roles) || roles.length === 0) return null;
+
+    const squad: SpecialistAgentProfile[] = roles.slice(0, 4).map((r) => {
+      const specializations = inferSpecializations(prompt);
+      const orchestrationMode = pickOrchestrationMode(prompt);
+      const wantsOpenClaw = orchestrationMode === "openclaw" || specializations.includes("openclaw-orchestration");
+      const subAgents = wantsOpenClaw ? buildSubAgents(prompt, r.role) : undefined;
+      const allowed = ["tavily-search", "tavily-extract", "internal-mission-log"];
+      if (wantsOpenClaw) allowed.push("openclaw-orchestrator");
+      const skills = buildSpecialistSkills(r.role, specializations, allowed);
+
+      const profile: SpecialistAgentProfile = {
+        name: r.name || `agent-${nanoid(5)}`,
+        role: r.role,
+        purpose: r.purpose || "Specialist agent for the user mission",
+        systemInstructions: `You are a specialist in ${r.role}. Focus on: ${r.purpose}. Apply deep domain expertise to produce actionable, industry-standard output.`,
+        allowedTools: allowed,
+        outputFormat: "markdown",
+        apiKeyRefs: ["OPENAI_COMPAT_BEARER", "TAVILY_API_KEY"],
+        notes: "",
+        specializations,
+        orchestrationMode,
+        subAgents,
+        skills,
+        readmeMd: "",
+        canvasLane: (r.lane as "frontend" | "backend" | "general") ?? "general"
+      };
+
+      attachSpecialistArtifacts(profile, prompt);
+      return profile;
+    });
+
+    return squad.length > 0 ? squad : null;
+  } catch (err) {
+    logger.warn({ err }, "Smart fallback squad generation failed");
+    return null;
+  }
+}
+
+/**
  * Central Agent designs the specialist squad via LLM (not rule-based templates).
- * Falls back to legacy inference only when the gateway is unavailable or JSON is invalid.
+ * Falls back to smart role extraction, then to legacy inference as last resort.
  */
 export async function synthesizeSquadFromMother(payload: MissionPayload): Promise<{
   squad: SpecialistAgentProfile[];
@@ -220,11 +302,21 @@ export async function synthesizeSquadFromMother(payload: MissionPayload): Promis
     }
   }
 
+  const smartFallback = await trySmartFallback(effectivePrompt);
+  if (smartFallback) {
+    return {
+      squad: smartFallback,
+      motherBrief: "_Central Agent JSON parse gagal — squad dari smart fallback berdasarkan analisis prompt._",
+      source: "fallback-rules",
+      parseError: lastError.slice(0, 200)
+    };
+  }
+
   const squad = inferSpecialistSquad(effectivePrompt);
   return {
     squad,
     motherBrief:
-      "_Central Agent tidak bisa mem-parse rencana LLM; squad sementara dari fallback aturan. SKILL.md dan README tetap jadi artifact utama; sample deliverable hanya opsional._",
+      "_Central Agent tidak bisa mem-parse rencana LLM; squad sementara dari fallback aturan._",
     source: "fallback-rules",
     parseError: lastError.slice(0, 200)
   };

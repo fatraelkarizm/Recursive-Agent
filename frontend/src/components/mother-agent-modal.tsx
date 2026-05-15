@@ -736,6 +736,7 @@ function centralKindLabel(kind: string) {
 
 function CentralSkillCards({ centralSkillMd, specialists }: { centralSkillMd: string | null; specialists: SpecialistAgentProfile[] }) {
   const [modalSkill, setModalSkill] = useState<CentralSkillItem | null>(null);
+  const [kindFilter, setKindFilter] = useState<string | null>(null);
 
   const allSkills = useMemo((): CentralSkillItem[] => {
     const skills: CentralSkillItem[] = [];
@@ -778,6 +779,20 @@ function CentralSkillCards({ centralSkillMd, specialists }: { centralSkillMd: st
     return skills;
   }, [centralSkillMd, specialists]);
 
+  const kindCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const sk of allSkills) {
+      const k = ["touch", "generate", "orchestrate"].includes(sk.kind) ? sk.kind : "other";
+      counts[k] = (counts[k] ?? 0) + 1;
+    }
+    return counts;
+  }, [allSkills]);
+
+  const filtered = kindFilter ? allSkills.filter((sk) => {
+    const k = ["touch", "generate", "orchestrate"].includes(sk.kind) ? sk.kind : "other";
+    return k === kindFilter;
+  }) : allSkills;
+
   if (allSkills.length === 0) {
     return (
       <div className="space-y-3">
@@ -786,12 +801,19 @@ function CentralSkillCards({ centralSkillMd, specialists }: { centralSkillMd: st
     );
   }
 
+  const filterButtons: { kind: string; label: string; color: string; activeColor: string }[] = [
+    { kind: "touch", label: "Riset", color: "border-cyan-500/30 text-cyan-400", activeColor: "border-cyan-400 bg-cyan-500/20 text-cyan-300" },
+    { kind: "generate", label: "Generate", color: "border-amber-500/30 text-amber-400", activeColor: "border-amber-400 bg-amber-500/20 text-amber-300" },
+    { kind: "orchestrate", label: "Orkestrasi", color: "border-violet-500/30 text-violet-400", activeColor: "border-violet-400 bg-violet-500/20 text-violet-300" },
+    { kind: "other", label: "Lainnya", color: "border-white/20 text-slate", activeColor: "border-white/40 bg-white/10 text-white" },
+  ];
+
   return (
     <>
       <div className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-xs text-slate">
-            SKILL Central Agent — {allSkills.length} skills dari {specialists.length} specialist + web extraction.
+            SKILL Central Agent — {allSkills.length} skills dari {specialists.length} specialist + built-in.
           </p>
           {centralSkillMd?.trim() ? (
             <button
@@ -804,8 +826,32 @@ function CentralSkillCards({ centralSkillMd, specialists }: { centralSkillMd: st
           ) : null}
         </div>
 
+        <div className="flex flex-wrap gap-1.5">
+          <button
+            type="button"
+            onClick={() => setKindFilter(null)}
+            className={`rounded-full border px-3 py-1 text-[10px] font-semibold transition ${!kindFilter ? "border-white/40 bg-white/10 text-white" : "border-white/15 text-slate hover:bg-white/5"}`}
+          >
+            Semua ({allSkills.length})
+          </button>
+          {filterButtons.map((fb) => {
+            const count = kindCounts[fb.kind] ?? 0;
+            if (count === 0) return null;
+            return (
+              <button
+                key={fb.kind}
+                type="button"
+                onClick={() => setKindFilter(kindFilter === fb.kind ? null : fb.kind)}
+                className={`rounded-full border px-3 py-1 text-[10px] font-semibold transition ${kindFilter === fb.kind ? fb.activeColor : `${fb.color} hover:bg-white/5`}`}
+              >
+                {fb.label} ({count})
+              </button>
+            );
+          })}
+        </div>
+
         <div className="grid gap-2 sm:grid-cols-3">
-          {allSkills.map((sk) => (
+          {filtered.map((sk) => (
             <button
               key={sk.id}
               type="button"

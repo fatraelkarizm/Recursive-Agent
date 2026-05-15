@@ -33,6 +33,10 @@ export type SpecialistAgentProfile = {
   readmeMd: string;
   /** UI canvas lane (icon + color) when multiple specialists are shown. */
   canvasLane?: "frontend" | "backend" | "general";
+  /** Stable DB id for canvas persistence across refreshes. */
+  persistedId?: string;
+  /** Mission that created this agent row. */
+  missionId?: string;
 };
 
 export type MissionPayload = {
@@ -76,5 +80,7 @@ export type MissionResult = {
   motherBrief?: string;
   /** `mother-llm` when squad came from synthesis; `fallback-rules` when gateway/parse failed. */
   squadSource?: "mother-llm" | "fallback-rules";
+  /** Mother quality review markdown (per-agent pass/rework). */
+  motherReview?: string;
   events: string[];
 };

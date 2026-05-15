@@ -15,12 +15,26 @@ export function readmeHasHtmlFence(md: string): boolean {
 /** When the user asked for a page/landing but README has no HTML fence, Mother adds one via LLM (topic-specific). */
 export async function ensureLeadHtmlDeliverable(
   profile: SpecialistAgentProfile,
-  missionPrompt: string
+  missionPrompt: string,
+  options?: { revisionNotes?: string; force?: boolean }
 ): Promise<boolean> {
-  if (!missionWantsHtmlDeliverable(missionPrompt) || readmeHasHtmlFence(profile.readmeMd)) {
+  const wantsHtml = missionWantsHtmlDeliverable(missionPrompt) || Boolean(options?.revisionNotes);
+  const hasHtml = readmeHasHtmlFence(profile.readmeMd);
+  if (!wantsHtml || (hasHtml && !options?.force)) {
     return false;
   }
   if (!isOpenAiCompatConfigured()) return false;
+
+  if (options?.force) {
+    profile.readmeMd = profile.readmeMd.replace(
+      /\n---\n+\n## Deliverable HTML[\s\S]*?(?=\n## |\n---\n## |$)/i,
+      ""
+    );
+  }
+
+  const revisionBlock = options?.revisionNotes
+    ? `\n\nMother revision instructions:\n${options.revisionNotes.slice(0, 2000)}`
+    : "";
 
   try {
     const block = await openAiCompatibleChatCompletion({
@@ -38,7 +52,7 @@ export async function ensureLeadHtmlDeliverable(
         },
         {
           role: "user",
-          content: `Mission:\n${missionPrompt.slice(0, 4000)}\n\nSpecialist: ${profile.name} (${profile.role})`
+          content: `Mission:\n${missionPrompt.slice(0, 4000)}${revisionBlock}\n\nSpecialist: ${profile.name} (${profile.role})`
         }
       ],
       maxTokens: 3800,
@@ -49,7 +63,7 @@ export async function ensureLeadHtmlDeliverable(
       "",
       "---",
       "",
-      "## Deliverable HTML (Mother-generated)",
+      options?.force ? "## Deliverable HTML (Mother rework)" : "## Deliverable HTML (Mother-generated)",
       "",
       block.trim(),
       ""

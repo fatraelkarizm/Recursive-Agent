@@ -1,14 +1,21 @@
 import type { MissionResult } from "../types";
+import { persistCanvasAgentsFromMission } from "./agent-store";
 import { getPrismaClient } from "./prisma";
 
 function buildMissionResultPayload(result: MissionResult): {
   specialists: MissionResult["profile"][];
   fleetSummary: MissionResult["fleetSummary"];
+  motherBrief?: string;
+  motherReview?: string;
+  squadSource?: string;
   savedAt: string;
 } {
   return {
     specialists: result.specialists ?? [result.profile],
     fleetSummary: result.fleetSummary ?? undefined,
+    motherBrief: result.motherBrief,
+    motherReview: result.motherReview,
+    squadSource: result.squadSource,
     savedAt: new Date().toISOString()
   };
 }
@@ -35,6 +42,8 @@ type PersistMissionInput = {
 type PersistMissionOutcome = {
   persisted: boolean;
   reason?: string;
+  /** Specialists with persistedId after canvas_agents insert. */
+  squadWithIds?: MissionResult["profile"][];
 };
 
 export async function persistMissionResult({
@@ -99,5 +108,8 @@ export async function persistMissionResult({
     });
   }
 
-  return { persisted: true };
+  const specialists = result.specialists ?? [result.profile];
+  const squadWithIds = await persistCanvasAgentsFromMission(result.missionId, specialists);
+
+  return { persisted: true, squadWithIds };
 }

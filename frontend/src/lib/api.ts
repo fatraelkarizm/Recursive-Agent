@@ -1,4 +1,9 @@
-import type { MissionRequest, MissionResponse, PublicRuntimeDiagnostics } from "@/lib/types";
+import type {
+  MissionRequest,
+  MissionResponse,
+  PublicRuntimeDiagnostics,
+  StoredCanvasAgent
+} from "@/lib/types";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:4000";
 
@@ -32,6 +37,15 @@ export async function previewExtract(payload: { url: string; query?: string }): 
     error?: string;
   };
   return data;
+}
+
+export async function fetchCanvasAgents(): Promise<StoredCanvasAgent[]> {
+  const response = await fetch(`${BACKEND_URL}/api/agents`, { method: "GET" });
+  if (!response.ok) {
+    throw new Error("Failed to load agents");
+  }
+  const data = (await response.json()) as { agents: StoredCanvasAgent[] };
+  return data.agents ?? [];
 }
 
 export async function createMission(payload: MissionRequest): Promise<MissionResponse> {

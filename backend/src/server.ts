@@ -8,6 +8,7 @@ import { logger } from "./logging";
 import { runMission } from "./agent/mother-agent";
 import { tavilyExtractOne } from "./capabilities/tavily-extract-one";
 import { getPublicRuntimeDiagnostics } from "./public-runtime-diagnostics";
+import { listCanvasAgents } from "./db/agent-store";
 
 // Load env robustly:
 // - sometimes the server is started from repo root vs from `backend/`
@@ -51,6 +52,24 @@ app.get("/health", (_req, res) => {
 /** Safe worker/env snapshot for dashboard "Config" tab (no secret values). */
 app.get("/api/runtime-config", (_req, res) => {
   res.json(getPublicRuntimeDiagnostics());
+});
+
+/** All persisted canvas agents (survives page refresh). */
+app.get("/api/agents", async (_req, res) => {
+  try {
+    const agents = await listCanvasAgents();
+    return res.json({
+      agents: agents.map((a) => ({
+        id: a.id,
+        missionId: a.missionId,
+        createdAt: a.createdAt,
+        profile: a.profile
+      }))
+    });
+  } catch (error) {
+    logger.error({ error }, "Failed to list canvas agents");
+    return res.status(500).json({ message: "Failed to load agents" });
+  }
 });
 
 /** Tavily Extract preview for Mother dashboard "Services" tab (requires TAVILY_API_KEY). */
@@ -100,6 +119,9 @@ app.post("/api/missions/stream", async (req, res) => {
   res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
   res.setHeader("Cache-Control", "no-cache, no-transform");
   res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
+  req.setTimeout(0);
+  res.setTimeout(600_000);
   res.flushHeaders?.();
 
   const write = (event: string, data: unknown) => {

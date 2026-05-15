@@ -9,6 +9,8 @@ import { runSandboxTask } from "../sandbox/e2b";
 import { browserTouchFromPrompt } from "../capabilities/browser";
 import { enrichProfileReadmeWithSumopod } from "../compat/openai-compatible-chat";
 import { ensureLeadHtmlDeliverable, missionWantsHtmlDeliverable } from "./mother-deliverable";
+import { runMotherQualityReview } from "./mother-review";
+import { updateCanvasAgentProfile } from "../db/agent-store";
 import { persistMissionResult } from "../db/mission-store";
 import type { MissionProgressEmitter } from "./mission-progress";
 import { createProgressEmitter } from "./mission-progress";
@@ -132,6 +134,37 @@ export async function runMission(
   const sandboxEvent = await runSandboxTask("echo specialist-agent-ready");
   events.push(`Sandbox: ${sandboxEvent}`);
 
+  emit({
+    phase: "mother-review",
+    label: "Mother review hasil agent",
+    detail: "Memeriksa setiap specialist vs misi user"
+  });
+  const quality = await runMotherQualityReview({
+    missionPrompt: effectivePrompt,
+    squad,
+    fleetSummary
+  });
+  const motherReview = quality.reviewMarkdown;
+  events.push(`Mother review: ${motherReview.slice(0, 240)}${motherReview.length > 240 ? "…" : ""}`);
+
+  const reworkTargets = quality.verdicts.filter((v) => v.verdict === "rework");
+  if (reworkTargets.length > 0) {
+    emit({
+      phase: "mother-review",
+      label: "Mother menyuruh rework",
+      detail: reworkTargets.map((r) => r.agentName).join(", ")
+    });
+    for (const v of reworkTargets) {
+      const agent = squad.find((s) => s.name === v.agentName) ?? lead;
+      const ok = await ensureLeadHtmlDeliverable(agent, effectivePrompt, {
+        revisionNotes: v.instructions ?? "Perbaiki deliverable agar sesuai misi user.",
+        force: true
+      });
+      if (ok) events.push(`Mother: rework selesai untuk ${agent.name}`);
+    }
+  }
+
+  let finalSquad = squad;
   const result: MissionResult = {
     missionId,
     status: "completed",
@@ -139,6 +172,7 @@ export async function runMission(
     specialists: squad.length > 1 ? squad : undefined,
     fleetSummary,
     motherBrief,
+    motherReview,
     squadSource: source,
     events
   };
@@ -147,8 +181,20 @@ export async function runMission(
   try {
     const persistence = await persistMissionResult({
       prompt: effectivePrompt,
-      result
+      result: { ...result, profile: finalSquad[0], specialists: finalSquad.length > 1 ? finalSquad : undefined }
     });
+
+    if (persistence.squadWithIds?.length) {
+      finalSquad = persistence.squadWithIds;
+      result.profile = finalSquad[0];
+      result.specialists = finalSquad.length > 1 ? finalSquad : undefined;
+      for (const agent of finalSquad) {
+        if (agent.persistedId) {
+          await updateCanvasAgentProfile(agent.persistedId, agent);
+        }
+      }
+      events.push(`Canvas: ${finalSquad.length} agent tersimpan (id persisten).`);
+    }
 
     result.events.push(
       persistence.persisted
@@ -159,6 +205,9 @@ export async function runMission(
     const message = error instanceof Error ? error.message : "unknown database error";
     result.events.push(`Persistence failed: ${message}`);
   }
+
+  result.profile = finalSquad[0];
+  result.specialists = finalSquad.length > 1 ? finalSquad : undefined;
 
   emit({ phase: "done", label: "Mission selesai", detail: missionId });
   return result;

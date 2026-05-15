@@ -13,6 +13,7 @@ import type {
 } from "@/lib/types";
 
 export type AgentDashboardTarget =
+  | { kind: "specialist"; agentId: string }
   | { kind: "specialist"; index: number }
   | { kind: "sub"; subId: string };
 
@@ -43,6 +44,8 @@ export type AgentDashboardModalProps = {
   missionPrompt: string;
   specialists: SpecialistAgentProfile[];
   fleetSummary: FleetOrchestrationSummary | null;
+  /** Fleet / sub-agent output only for this mission id. */
+  activeMissionId?: string | null;
 };
 
 export function AgentDashboardModal({
@@ -51,19 +54,36 @@ export function AgentDashboardModal({
   target,
   missionPrompt,
   specialists,
-  fleetSummary
+  fleetSummary,
+  activeMissionId
 }: AgentDashboardModalProps) {
   const [tab, setTab] = useState<TabId>("overview");
   const [runtime, setRuntime] = useState<PublicRuntimeDiagnostics | null>(null);
   const [runtimeLoading, setRuntimeLoading] = useState(false);
   const [runtimeErr, setRuntimeErr] = useState<string | null>(null);
 
+  const activeSpecialist = useMemo(() => {
+    if (!target || target.kind !== "specialist") return undefined;
+    if ("agentId" in target && target.agentId) {
+      return specialists.find((s) => s.persistedId === target.agentId || `idx-${specialists.indexOf(s)}` === target.agentId);
+    }
+    return specialists[target.index];
+  }, [target, specialists]);
+
+  const fleetForView = useMemo(() => {
+    if (!activeMissionId || !fleetSummary) return fleetSummary;
+    return fleetSummary;
+  }, [activeMissionId, fleetSummary]);
+
   const readmeMd = useMemo(() => {
     if (!open || !target) return "";
-    return target.kind === "sub"
-      ? (specialists[0]?.readmeMd ?? "")
-      : (specialists[target.index]?.readmeMd ?? "");
-  }, [open, target, specialists]);
+    if (target.kind === "sub") {
+      const lead =
+        specialists.find((s) => s.missionId === activeMissionId) ?? specialists[0];
+      return lead?.readmeMd ?? "";
+    }
+    return activeSpecialist?.readmeMd ?? "";
+  }, [open, target, specialists, activeSpecialist, activeMissionId]);
 
   const previewHtml = useMemo(() => extractFirstHtmlFence(readmeMd), [readmeMd]);
 
@@ -94,13 +114,13 @@ export function AgentDashboardModal({
     if (!open || !target) return;
     const readmeForDefault =
       target.kind === "sub"
-        ? (specialists[0]?.readmeMd ?? "")
-        : (specialists[target.index]?.readmeMd ?? "");
+        ? (specialists.find((s) => s.missionId === activeMissionId)?.readmeMd ?? specialists[0]?.readmeMd ?? "")
+        : (activeSpecialist?.readmeMd ?? "");
     const html = extractFirstHtmlFence(readmeForDefault);
     const next: TabId = html ? "preview" : readmeForDefault.trim().length > 0 ? "readme" : "overview";
     const id = requestAnimationFrame(() => setTab(next));
     return () => cancelAnimationFrame(id);
-  }, [open, target, specialists]);
+  }, [open, target, specialists, activeSpecialist, activeMissionId]);
 
   useEffect(() => {
     if (!open || tab !== "config") return;
@@ -139,11 +159,17 @@ export function AgentDashboardModal({
 
   if (!open || !target) return null;
 
-  const lead = specialists[0];
+  const lead =
+    specialists.find((s) => s.missionId === activeMissionId) ??
+    specialists[specialists.length - 1] ??
+    specialists[0];
   const isSub = target.kind === "sub";
-  const specialist = !isSub ? specialists[target.index] : undefined;
+  const specialist = !isSub ? activeSpecialist : undefined;
   const subDesc = isSub ? findSubDescriptor(lead, target.subId) : undefined;
-  const subRun = isSub ? findSubRun(fleetSummary, target.subId) : undefined;
+  const subRun = isSub ? findSubRun(fleetForView, target.subId) : undefined;
+  const isActiveMissionLead = Boolean(
+    specialist?.missionId && activeMissionId && specialist.missionId === activeMissionId
+  );
 
   const title = isSub
     ? `Sub-agent · ${subDesc?.role ?? target.subId}`
@@ -531,16 +557,16 @@ export function AgentDashboardModal({
 
           {tab === "result" && !isSub && specialist && (
             <div className="space-y-4">
-              {target.index === 0 && fleetSummary?.mergedReport ? (
+              {isActiveMissionLead && fleetForView?.mergedReport ? (
                 <>
                   <p className="text-xs text-slate">
                     Lead specialist — laporan gabungan mother (scout → worker → reviewer + merge).
                   </p>
                   <pre className="max-h-[min(62vh,640px)] overflow-auto whitespace-pre-wrap rounded-lg border border-white/10 bg-black/50 p-3 font-mono text-[12px] text-slate-100 sm:text-[13px]">
-                    {fleetSummary.mergedReport}
+                    {fleetForView.mergedReport}
                   </pre>
                 </>
-              ) : target.index !== 0 ? (
+              ) : !isActiveMissionLead ? (
                 <p className="text-xs text-slate">
                   Specialist squad (bukan lead). Ringkasan fleet ada di lead (node pertama / tab Frontend).
                 </p>

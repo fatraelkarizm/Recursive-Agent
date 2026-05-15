@@ -6,11 +6,20 @@ import type { MotherMissionBundle } from "@/components/mother-agent-modal";
 type KnowledgePanelProps = {
   bundle: MotherMissionBundle;
   motherBrief: string | null;
+  motherReview?: string | null;
   squadSource: string | null;
   progress: MissionProgressEvent[];
+  agentCount?: number;
 };
 
-export function KnowledgePanel({ bundle, motherBrief, squadSource, progress }: KnowledgePanelProps) {
+export function KnowledgePanel({
+  bundle,
+  motherBrief,
+  motherReview,
+  squadSource,
+  progress,
+  agentCount = 0
+}: KnowledgePanelProps) {
   const hasContext = Boolean(bundle.contextNotes?.trim());
   const urls = (bundle.referenceUrls ?? []).filter((u) => u.trim());
   const hasReview = Boolean(bundle.motherReviewNotes?.trim());
@@ -33,6 +42,21 @@ export function KnowledgePanel({ bundle, motherBrief, squadSource, progress }: K
         ) : (
           <p className="text-slate/80">Jalankan mission — Mother akan menulis ringkasan pemikiran di sini.</p>
         )}
+
+        {motherReview ? (
+          <article className="rounded-lg border border-amber-400/25 bg-amber-500/10 p-3">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-amber-100/90">
+              Mother review
+            </p>
+            <p className="mt-1.5 whitespace-pre-wrap text-slate/95">{motherReview}</p>
+          </article>
+        ) : null}
+
+        {agentCount > 0 ? (
+          <p className="text-[10px] text-slate/70">
+            {agentCount} agent di canvas (persisten — tidak hilang saat refresh).
+          </p>
+        ) : null}
 
         {hasContext ? (
           <article className="rounded-lg border border-white/10 bg-black/25 p-3">

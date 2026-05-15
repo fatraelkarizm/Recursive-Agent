@@ -42,17 +42,30 @@ const nodeTypes = {
   action: ActionNode
 } satisfies NodeTypes;
 
-function layoutSpecialistPositions(n: number): { x: number; y: number }[] {
-  if (n <= 1) return [{ x: 248, y: 318 }];
+function agentNodeId(agent: SpecialistAgentProfile, index: number): string {
+  return `${SP_PREFIX}${agent.persistedId ?? `idx-${index}`}`;
+}
+
+function layoutAgentGrid(n: number): { x: number; y: number }[] {
+  if (n <= 0) return [];
+  const cols = Math.min(4, Math.max(1, Math.ceil(Math.sqrt(n))));
   const w = 232;
-  const gap = 36;
-  const total = n * w + (n - 1) * gap;
-  const cx = 360;
-  const x0 = cx - total / 2;
-  return Array.from({ length: n }, (_, i) => ({
-    x: Math.round(x0 + i * (w + gap)),
-    y: 300
-  }));
+  const hGap = 36;
+  const vGap = 88;
+  const positions: { x: number; y: number }[] = [];
+
+  for (let i = 0; i < n; i++) {
+    const row = Math.floor(i / cols);
+    const col = i % cols;
+    const inRow = Math.min(cols, n - row * cols);
+    const rowW = inRow * w + (inRow - 1) * hGap;
+    const rowX0 = 360 - rowW / 2;
+    positions.push({
+      x: Math.round(rowX0 + col * (w + hGap)),
+      y: 300 + row * vGap
+    });
+  }
+  return positions;
 }
 
 function inferSubAgentKind(role: string): "scout" | "worker" | "reviewer" {
@@ -149,6 +162,7 @@ function isPlaceholderProfile(profile: SpecialistAgentProfile): boolean {
 type FlowSurfaceProps = {
   status: string;
   specialists: SpecialistAgentProfile[];
+  activeMissionId?: string | null;
   onSelectAgent?: (target: AgentDashboardTarget) => void;
   onOpenMotherDashboard?: () => void;
   motherThinking?: boolean;
@@ -159,6 +173,7 @@ type FlowSurfaceProps = {
 function FlowSurface({
   status,
   specialists,
+  activeMissionId,
   onSelectAgent,
   onOpenMotherDashboard,
   motherThinking,
@@ -177,8 +192,8 @@ function FlowSurface({
     (_event, node) => {
       if (!onSelectAgent) return;
       if (node.id.startsWith(SP_PREFIX)) {
-        const idx = parseInt(node.id.slice(SP_PREFIX.length), 10);
-        if (!Number.isNaN(idx)) onSelectAgent({ kind: "specialist", index: idx });
+        const agentId = node.id.slice(SP_PREFIX.length);
+        onSelectAgent({ kind: "specialist", agentId });
         return;
       }
       if (node.id.startsWith(SUB_NODE_PREFIX)) {
@@ -206,29 +221,39 @@ function FlowSurface({
       let list: Node[] = base;
 
       if (!pending) {
-        const positions = layoutSpecialistPositions(specialists.length);
+        const positions = layoutAgentGrid(specialists.length);
         const specNodes: Node[] = specialists.map((p, i) => ({
-          id: `${SP_PREFIX}${i}`,
+          id: agentNodeId(p, i),
           type: "specialist",
           position: positions[i] ?? { x: 248, y: 318 },
           data: {
             name: p.name,
             role: p.role,
             skillsPreview: p.skills?.map((s) => s.label).join(" · ") ?? "",
-            lane: p.canvasLane ?? "general"
+            lane: p.canvasLane ?? "general",
+            isLatest: activeMissionId != null && p.missionId === activeMissionId
           }
         }));
         list = [...base, ...specNodes];
 
-        const subs = lead.subAgents ?? [];
+        const activeLead =
+          specialists.find((p) => p.missionId === activeMissionId) ?? lead;
+        const subs =
+          activeMissionId && activeLead.missionId === activeMissionId
+            ? (activeLead.subAgents ?? [])
+            : [];
+
         if (subs.length > 0) {
-          const leadPos = positions[0] ?? { x: 248, y: 318 };
+          const leadIdx = specialists.findIndex(
+            (p) => p.persistedId === activeLead.persistedId || p.name === activeLead.name
+          );
+          const leadPos = positions[leadIdx >= 0 ? leadIdx : 0] ?? { x: 248, y: 318 };
           const leadCenterX = leadPos.x + 110;
           const positionsSubs = layoutSubAgentPositions(subs.length, leadCenterX);
           const subNodes: Node[] = subs.map((s, i) => ({
             id: `${SUB_NODE_PREFIX}${s.id}`,
             type: "subAgent",
-            position: positionsSubs[i] ?? { x: 80 + i * 210, y: 468 },
+            position: positionsSubs[i] ?? { x: 80 + i * 210, y: leadPos.y + 150 },
             data: {
               role: s.role,
               focus: s.focus,
@@ -264,22 +289,32 @@ function FlowSurface({
         (e) => !e.id.startsWith("e-mother-spec-") && !e.id.startsWith("e-spec-sub-")
       );
       if (pending) return base;
-      const motherToSpecs: Edge[] = specialists.map((_, i) => ({
-        id: `e-mother-spec-${i}`,
+      const motherToSpecs: Edge[] = specialists.map((p, i) => ({
+        id: `e-mother-spec-${p.persistedId ?? i}`,
         source: "mother",
-        target: `${SP_PREFIX}${i}`,
+        target: agentNodeId(p, i),
         sourceHandle: "to-specialist",
         targetHandle: "from-mother",
         animated: true,
         style: { stroke: "#a78bfa" }
       }));
-      const subs = lead.subAgents ?? [];
+
+      const activeLead =
+        specialists.find((p) => p.missionId === activeMissionId) ?? lead;
+      const subs =
+        activeMissionId && activeLead.missionId === activeMissionId
+          ? (activeLead.subAgents ?? [])
+          : [];
       if (subs.length === 0) {
         return [...base, ...motherToSpecs];
       }
+      const leadIdx = specialists.findIndex(
+        (p) => p.persistedId === activeLead.persistedId || p.name === activeLead.name
+      );
+      const leadNodeId = agentNodeId(activeLead, leadIdx >= 0 ? leadIdx : 0);
       const subEdges: Edge[] = subs.map((s) => ({
         id: `e-spec-sub-${s.id}`,
-        source: `${SP_PREFIX}0`,
+        source: leadNodeId,
         target: `${SUB_NODE_PREFIX}${s.id}`,
         sourceHandle: "to-subagents",
         targetHandle: "from-specialist",
@@ -296,7 +331,8 @@ function FlowSurface({
     onOpenMotherDashboard,
     motherThinking,
     motherProgressCurrent,
-    motherProgressHistory
+    motherProgressHistory,
+    activeMissionId
   ]);
 
   const defaultEdgeOptions = useMemo(
@@ -343,11 +379,13 @@ type MissionCanvasProps = {
   motherThinking?: boolean;
   motherProgressCurrent?: MissionProgressEvent | null;
   motherProgressHistory?: MissionProgressEvent[];
+  activeMissionId?: string | null;
 };
 
 export function MissionCanvas({
   status,
   specialists,
+  activeMissionId,
   onSelectAgent,
   onOpenMotherDashboard,
   motherThinking,
@@ -381,6 +419,7 @@ export function MissionCanvas({
             motherThinking={motherThinking}
             motherProgressCurrent={motherProgressCurrent}
             motherProgressHistory={motherProgressHistory}
+            activeMissionId={activeMissionId}
           />
         </ReactFlowProvider>
       </div>

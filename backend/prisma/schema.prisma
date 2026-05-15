@@ -46,3 +46,17 @@ model MissionEvent {
   @@index([missionId, sequence])
   @@map("mission_events")
 }
+
+/** Persistent specialists on the mission canvas (survive refresh; accumulate per run). */
+model CanvasAgent {
+  id          String   @id @default(cuid())
+  missionId   String?
+  name        String
+  role        String
+  purpose     String
+  profileJson Json
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+  @@map("canvas_agents")
+}

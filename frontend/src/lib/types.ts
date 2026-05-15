@@ -26,6 +26,15 @@ export type SpecialistAgentProfile = {
   skills: SpecialistSkill[];
   readmeMd: string;
   canvasLane?: "frontend" | "backend" | "general";
+  persistedId?: string;
+  missionId?: string;
+};
+
+export type StoredCanvasAgent = {
+  id: string;
+  missionId: string | null;
+  createdAt: string;
+  profile: SpecialistAgentProfile;
 };
 
 export type ChatMessage = {
@@ -82,6 +91,7 @@ export type MissionResponse = {
   fleetSummary?: FleetOrchestrationSummary;
   motherBrief?: string;
   squadSource?: "mother-llm" | "fallback-rules";
+  motherReview?: string;
   status: "created" | "running" | "completed" | "failed";
   events?: string[];
 };

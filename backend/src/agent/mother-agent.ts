@@ -8,7 +8,7 @@ import { runToolRoute } from "./tool-router";
 import { runSandboxTask } from "../sandbox/e2b";
 import { browserTouchFromPrompt } from "../capabilities/browser";
 import { enrichProfileReadmeWithSumopod } from "../compat/openai-compatible-chat";
-import { ensureLeadHtmlDeliverable } from "./mother-deliverable";
+import { ensureLeadHtmlDeliverable, missionWantsHtmlDeliverable } from "./mother-deliverable";
 import { persistMissionResult } from "../db/mission-store";
 import type { MissionProgressEmitter } from "./mission-progress";
 import { createProgressEmitter } from "./mission-progress";
@@ -31,7 +31,7 @@ export async function runMission(
     detail: "Mendekomposisi misi dan merancang squad specialist"
   });
 
-  const { squad, motherBrief, source } = await synthesizeSquadFromMother(payload);
+  const { squad, motherBrief, source, parseError } = await synthesizeSquadFromMother(payload);
 
   emit({
     phase: "mother-spawn",
@@ -47,7 +47,7 @@ export async function runMission(
 
   const lead = squad[0];
   let htmlDeliverableNote: string | null = null;
-  if (source === "mother-llm") {
+  if (missionWantsHtmlDeliverable(effectivePrompt)) {
     emit({
       phase: "specialist-readme",
       label: "Mother menulis deliverable HTML",
@@ -56,11 +56,14 @@ export async function runMission(
     const added = await ensureLeadHtmlDeliverable(lead, effectivePrompt);
     if (added) {
       htmlDeliverableNote = "Mother: HTML deliverable generated for lead specialist README.";
+    } else if (source === "fallback-rules") {
+      htmlDeliverableNote =
+        "Mother: HTML deliverable gagal — cek gateway/model. Parse error: " + (parseError ?? "n/a");
     }
   }
 
   for (const member of squad) {
-    if (source === "fallback-rules" && member.readmeMd.length < 400) {
+    if (source === "fallback-rules" && member.readmeMd.length < 400 && !missionWantsHtmlDeliverable(effectivePrompt)) {
       emit({
         phase: "specialist-readme",
         label: `Melengkapi README · ${member.name}`,
@@ -74,6 +77,9 @@ export async function runMission(
   const graph = buildMissionGraph(profile);
   const events: string[] = [];
   if (htmlDeliverableNote) events.push(htmlDeliverableNote);
+  if (parseError && source === "fallback-rules") {
+    events.push(`Mother: JSON parse error — ${parseError}`);
+  }
   events.push(`Mother: squad via ${source}`);
   events.push(`Mother brief: ${motherBrief.slice(0, 500)}${motherBrief.length > 500 ? "…" : ""}`);
 

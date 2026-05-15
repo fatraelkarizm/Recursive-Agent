@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { MissionPayload, SpecialistAgentProfile, SubAgentDescriptor } from "../types";
 import { isOpenAiCompatConfigured, openAiCompatibleChatCompletion } from "../compat/openai-compatible-chat";
 import { buildEffectiveMissionPrompt } from "./mission-prompt";
+import { buildSpecialistReadme } from "./specialist-artifacts";
 import { inferSpecialistSquad } from "./squad-inference";
 import { logger } from "../logging";
 
@@ -18,7 +19,8 @@ const subAgentSchema = z.object({
   focus: z.string().min(1)
 });
 
-const specialistSchema = z.object({
+/** Lite schema — no readmeMd in JSON (HTML/markdown breaks JSON.parse on many models). */
+const specialistLiteSchema = z.object({
   name: z.string().min(1),
   role: z.string().min(1),
   purpose: z.string().min(1),
@@ -29,23 +31,54 @@ const specialistSchema = z.object({
   allowedTools: z.array(z.string()).optional(),
   subAgents: z.array(subAgentSchema).optional(),
   skills: z.array(skillSchema).default([]),
-  readmeMd: z.string().min(1)
+  readmeOutline: z.string().optional()
 });
 
 const planSchema = z.object({
   motherBrief: z.string().min(1),
-  specialists: z.array(specialistSchema).min(1).max(4)
+  specialists: z.array(specialistLiteSchema).min(1).max(4)
 });
 
 export type MotherSquadPlan = z.infer<typeof planSchema>;
 
+function repairJsonText(s: string): string {
+  return s
+    .replace(/,\s*}/g, "}")
+    .replace(/,\s*]/g, "]")
+    .replace(/\u201c|\u201d/g, '"')
+    .replace(/\u2018|\u2019/g, "'");
+}
+
 function extractJsonObject(raw: string): unknown {
   const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  const candidate = (fenced?.[1] ?? raw).trim();
+  let candidate = (fenced?.[1] ?? raw).trim();
+  candidate = repairJsonText(candidate);
+
   const start = candidate.indexOf("{");
-  const end = candidate.lastIndexOf("}");
-  if (start === -1 || end === -1) throw new Error("No JSON object in model output");
-  return JSON.parse(candidate.slice(start, end + 1));
+  if (start === -1) throw new Error("No JSON object in model output");
+
+  // Brace-balanced slice (readmeMd with `}` used to break lastIndexOf)
+  let depth = 0;
+  let end = -1;
+  for (let i = start; i < candidate.length; i++) {
+    const ch = candidate[i];
+    if (ch === "{") depth++;
+    else if (ch === "}") {
+      depth--;
+      if (depth === 0) {
+        end = i;
+        break;
+      }
+    }
+  }
+  if (end === -1) throw new Error("Unbalanced JSON braces in model output");
+
+  const slice = candidate.slice(start, end + 1);
+  try {
+    return JSON.parse(slice);
+  } catch {
+    return JSON.parse(repairJsonText(slice));
+  }
 }
 
 function normalizeSubAgents(subs: z.infer<typeof subAgentSchema>[] | undefined, role: string): SubAgentDescriptor[] | undefined {
@@ -57,11 +90,11 @@ function normalizeSubAgents(subs: z.infer<typeof subAgentSchema>[] | undefined, 
   }));
 }
 
-function toProfile(s: z.infer<typeof specialistSchema>): SpecialistAgentProfile {
+function toProfile(s: z.infer<typeof specialistLiteSchema>, missionPrompt: string): SpecialistAgentProfile {
   const allowedTools = s.allowedTools?.length
     ? s.allowedTools
     : ["tavily-search", "internal-mission-log"];
-  return {
+  const profile: SpecialistAgentProfile = {
     name: s.name,
     role: s.role,
     purpose: s.purpose,
@@ -83,9 +116,54 @@ function toProfile(s: z.infer<typeof specialistSchema>): SpecialistAgentProfile 
             kind: "generate"
           }
         ],
-    readmeMd: s.readmeMd,
+    readmeMd: "",
     canvasLane: s.canvasLane ?? "general"
   };
+
+  profile.readmeMd = buildSpecialistReadme(profile, missionPrompt);
+  if (s.readmeOutline?.trim()) {
+    profile.readmeMd += ["", "## Rencana Mother", "", s.readmeOutline.trim(), ""].join("\n");
+  }
+  return profile;
+}
+
+const SYSTEM_PROMPT = [
+  "You are the Mother Agent of Recursive Agent — a mission control orchestrator.",
+  "Design a small squad of specialist agents for ONE user mission. Think from first principles; do NOT use fixed templates.",
+  "Return ONLY one valid JSON object. No markdown outside JSON. No code fences inside string values.",
+  "Schema:",
+  "{",
+  '  "motherBrief": "2-4 sentences in Indonesian: reasoning, decomposition, risks",',
+  '  "specialists": [{',
+  '    "name": "kebab-case-id",',
+  '    "role": "short-role-id",',
+  '    "purpose": "one sentence",',
+  '    "systemInstructions": "actionable system prompt",',
+  '    "canvasLane": "frontend|backend|general",',
+  '    "specializations": ["core-mission"],',
+  '    "orchestrationMode": "local|openclaw",',
+  '    "allowedTools": ["tavily-search"],',
+  '    "subAgents": [{ "role": "scout", "focus": "..." }],',
+  '    "skills": [{ "id": "x", "label": "y", "description": "z", "kind": "generate" }],',
+  '    "readmeOutline": "bullet outline only — deliverable HTML will be generated in a later step"',
+  "  }]",
+  "}",
+  "Rules:",
+  "- Do NOT put readmeMd or ```html in JSON — it breaks parsing.",
+  "- Landing page / crypto / HTML missions → 1 specialist, readmeOutline describes the page sections.",
+  "- Never default to article/CMS unless user asked for CMS.",
+  "- Match user language (Indonesian if user writes Indonesian)."
+].join("\n");
+
+async function callMotherPlan(effectivePrompt: string, temperature: number): Promise<string> {
+  return openAiCompatibleChatCompletion({
+    messages: [
+      { role: "system", content: SYSTEM_PROMPT },
+      { role: "user", content: effectivePrompt }
+    ],
+    maxTokens: 2800,
+    temperature
+  });
 }
 
 /**
@@ -96,6 +174,7 @@ export async function synthesizeSquadFromMother(payload: MissionPayload): Promis
   squad: SpecialistAgentProfile[];
   motherBrief: string;
   source: "mother-llm" | "fallback-rules";
+  parseError?: string;
 }> {
   const effectivePrompt = buildEffectiveMissionPrompt(payload);
 
@@ -108,56 +187,31 @@ export async function synthesizeSquadFromMother(payload: MissionPayload): Promis
     };
   }
 
-  const system = [
-    "You are the Mother Agent of Recursive Agent — a mission control orchestrator.",
-    "Design a small squad of specialist agents for ONE user mission. Think from first principles; do NOT use fixed templates.",
-    "Return ONLY valid JSON (no markdown outside the JSON) matching this shape:",
-    "{",
-    '  "motherBrief": "2-4 sentences in Indonesian: reasoning, decomposition, risks",',
-    '  "specialists": [{',
-    '    "name": "kebab-case-id",',
-    '    "role": "short-role-id",',
-    '    "purpose": "one sentence",',
-    '    "systemInstructions": "actionable system prompt for this specialist",',
-    '    "canvasLane": "frontend|backend|general",',
-    '    "specializations": ["core-mission", ...],',
-    '    "orchestrationMode": "local|openclaw",',
-    '    "allowedTools": ["tavily-search", "tavily-extract", ...],',
-    '    "subAgents": [{ "role": "scout|worker|reviewer|custom", "focus": "what this leg does" }],',
-    '    "skills": [{ "id": "...", "label": "...", "description": "...", "kind": "touch|generate|orchestrate|other" }],',
-    '    "readmeMd": "Full README in Markdown. If user wants a landing/page/HTML: include ONE complete ```html fenced block (embedded CSS, dark elegant) tailored to the EXACT topic (e.g. crypto landing → crypto hero, features, CTA — NOT a generic article/CMS editor)."',
-    "  }]",
-    "}",
-    "Rules:",
-    "- Infer deliverable type from the user prompt (landing page vs CMS vs API-only). Never default to article/CMS templates.",
-    "- Single-page landing / marketing HTML → usually 1 specialist with html fence; do NOT split frontend+backend unless user asked for full stack.",
-    "- 2 specialists only when UI and API/data are clearly separate deliverables.",
-    "- subAgents: 0-3 on lead specialist only when critique helps; omit for simple one-page builds.",
-    "- readmeMd must be substantive and topic-specific. Honor user language (Indonesian if user writes Indonesian).",
-    "- Do not invent API keys or claim tools ran."
-  ].join("\n");
+  const attempts: Array<{ temp: number; label: string }> = [
+    { temp: 0.35, label: "primary" },
+    { temp: 0.2, label: "retry-strict" }
+  ];
 
-  try {
-    const raw = await openAiCompatibleChatCompletion({
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: effectivePrompt }
-      ],
-      maxTokens: 4500,
-      temperature: 0.55
-    });
+  let lastError = "unknown";
 
-    const parsed = planSchema.parse(extractJsonObject(raw));
-    const squad = parsed.specialists.map(toProfile);
-    return { squad, motherBrief: parsed.motherBrief.trim(), source: "mother-llm" };
-  } catch (err) {
-    logger.warn({ err }, "Mother squad synthesis failed — using rule fallback");
-    const squad = inferSpecialistSquad(effectivePrompt);
-    return {
-      squad,
-      motherBrief:
-        "_Mother tidak bisa mem-parse rencana LLM; squad sementara dari fallback aturan. Periksa model/gateway dan coba lagi._",
-      source: "fallback-rules"
-    };
+  for (const attempt of attempts) {
+    try {
+      const raw = await callMotherPlan(effectivePrompt, attempt.temp);
+      const parsed = planSchema.parse(extractJsonObject(raw));
+      const squad = parsed.specialists.map((s) => toProfile(s, effectivePrompt));
+      return { squad, motherBrief: parsed.motherBrief.trim(), source: "mother-llm" };
+    } catch (err) {
+      lastError = err instanceof Error ? err.message : String(err);
+      logger.warn({ err, attempt: attempt.label }, "Mother squad synthesis parse failed");
+    }
   }
+
+  const squad = inferSpecialistSquad(effectivePrompt);
+  return {
+    squad,
+    motherBrief:
+      "_Mother tidak bisa mem-parse rencana LLM; squad sementara dari fallback aturan. HTML akan tetap dicoba lewat langkah deliverable terpisah._",
+    source: "fallback-rules",
+    parseError: lastError.slice(0, 200)
+  };
 }

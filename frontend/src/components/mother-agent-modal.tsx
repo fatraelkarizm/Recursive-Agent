@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { BookOpen, ChevronDown, ChevronRight, Globe, Layers, Loader2, Search, Wrench, X, Zap } from "lucide-react";
+import { BookOpen, CheckCircle2, ChevronDown, ChevronRight, Download, Globe, Layers, Loader2, Search, Wrench, X, XCircle, Zap } from "lucide-react";
 import { MessageCircle } from "lucide-react";
 import { MotherAgentManagement } from "@/components/mother-agent-management";
 import { fetchMem0Status, fetchRuntimeDiagnostics, fetchTelegramStatus, previewExtract, searchMem0, startTelegramBot, stopTelegramBot, type Mem0SearchResult, type Mem0Status, type TelegramBotStatus } from "@/lib/api";
@@ -80,6 +80,8 @@ type MotherAgentModalProps = {
   agentsBusy?: boolean;
   centralSkillMd?: string | null;
   centralReadmeMd?: string | null;
+  motherBrief?: string | null;
+  motherReview?: string | null;
 };
 
 export function MotherAgentModal({
@@ -100,7 +102,9 @@ export function MotherAgentModal({
   onClearAllAgents,
   agentsBusy,
   centralSkillMd,
-  centralReadmeMd
+  centralReadmeMd,
+  motherBrief,
+  motherReview
 }: MotherAgentModalProps) {
   const [tab, setTab] = useState<TabId>("overview");
   const [local, setLocal] = useState<MotherMissionBundle>(bundle);
@@ -659,23 +663,15 @@ export function MotherAgentModal({
           )}
 
           {tab === "hasil" && (
-            <div className="space-y-4">
-              {fleetSummary?.mergedReport ? (
-                <>
-                  <p className="text-xs text-slate">Laporan gabungan fleet → Central Agent (ringkas).</p>
-                  <pre className="max-h-[min(48vh,440px)] overflow-auto whitespace-pre-wrap rounded-xl border border-white/10 bg-black/50 p-3 font-mono text-[12px] text-slate-100">
-                    {fleetSummary.mergedReport.slice(0, 8000)}
-                    {fleetSummary.mergedReport.length > 8000 ? "\n\n…(potong)" : ""}
-                  </pre>
-                  <p className="text-[10px] text-slate">
-                    Lead: <span className="text-white">{lead?.name ?? "—"}</span> — buka dashboard specialist untuk
-                    SKILL.md / README / sample output penuh.
-                  </p>
-                </>
-              ) : (
-                <p className="text-sm text-slate">Belum ada hasil fleet. Jalankan misi dari chat.</p>
-              )}
-            </div>
+            <MissionResultsTab
+              fleetSummary={fleetSummary}
+              specialists={specialists}
+              missionPrompt={missionPrompt}
+              motherBrief={motherBrief ?? null}
+              motherReview={motherReview ?? null}
+              centralSkillMd={centralSkillMd ?? null}
+              activeMissionId={activeMissionId}
+            />
           )}
         </div>
 
@@ -966,4 +962,354 @@ function CentralSkillDetailModal({ skill, onClose }: { skill: CentralSkillItem; 
       </div>
     </div>
   );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Mission Results Tab — rich structured view + downloadable report  */
+/* ------------------------------------------------------------------ */
+
+function generateMissionReportHtml(opts: {
+  missionId: string | null;
+  missionPrompt: string;
+  specialists: SpecialistAgentProfile[];
+  fleetSummary: FleetOrchestrationSummary | null;
+  motherBrief: string | null;
+  motherReview: string | null;
+}): string {
+  const { missionId, missionPrompt, specialists, fleetSummary, motherBrief, motherReview } = opts;
+  const totalSkills = new Set(specialists.flatMap((s) => s.skills.map((sk) => sk.id))).size;
+  const totalSubs = specialists.reduce((n, s) => n + (s.subAgents?.length ?? 0), 0);
+  const now = new Date().toLocaleString("id-ID", { dateStyle: "full", timeStyle: "short" });
+
+  const agentRows = specialists.map((s) => {
+    const subCount = s.subAgents?.length ?? 0;
+    return `<tr>
+      <td style="padding:8px 12px;border-bottom:1px solid #1e293b;font-weight:600;color:#e2e8f0">${esc(s.name)}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #1e293b;color:#94a3b8">${esc(s.role)}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #1e293b;color:#94a3b8">${esc(s.canvasLane ?? "general")}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #1e293b;color:#94a3b8">${s.skills.length}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #1e293b;color:#94a3b8">${subCount}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #1e293b;color:#64748b;font-size:12px">${esc(s.purpose.slice(0, 120))}</td>
+    </tr>`;
+  }).join("\n");
+
+  const subAgentCards = (fleetSummary?.subAgentRuns ?? []).map((run) => {
+    const srcColor = run.source === "openclaw" ? "#a78bfa" : run.source === "openai-compat" ? "#38bdf8" : "#64748b";
+    const statusIcon = run.source === "skipped" ? "&#10060;" : "&#9989;";
+    return `<div style="background:#0f172a;border:1px solid #1e293b;border-radius:12px;padding:16px;margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <span style="font-size:16px">${statusIcon}</span>
+        <span style="font-weight:700;color:#e2e8f0;font-size:14px">${esc(run.role)}</span>
+        <span style="background:${srcColor}22;color:${srcColor};padding:2px 8px;border-radius:100px;font-size:10px;font-weight:600">${esc(run.source)}</span>
+      </div>
+      <p style="color:#94a3b8;font-size:12px;margin-bottom:8px">${esc(run.focus)}</p>
+      <pre style="background:#020617;border:1px solid #1e293b;border-radius:8px;padding:12px;color:#cbd5e1;font-size:11px;white-space:pre-wrap;max-height:300px;overflow:auto">${esc(run.output.slice(0, 3000))}${run.output.length > 3000 ? "\n\n…(truncated)" : ""}</pre>
+    </div>`;
+  }).join("\n");
+
+  return `<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mission Report — ${esc(missionId ?? "Recursive Agent")}</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:#020617;color:#e2e8f0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;padding:40px 20px}
+  .container{max-width:900px;margin:0 auto}
+  h1{font-size:28px;font-weight:800;background:linear-gradient(135deg,#a78bfa,#38bdf8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:4px}
+  h2{font-size:18px;font-weight:700;color:#e2e8f0;margin:32px 0 12px;padding-bottom:8px;border-bottom:1px solid #1e293b}
+  h3{font-size:14px;font-weight:600;color:#a78bfa;margin:16px 0 8px}
+  .meta{color:#64748b;font-size:12px;margin-bottom:32px}
+  .stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:24px}
+  .stat{background:#0f172a;border:1px solid #1e293b;border-radius:12px;padding:16px;text-align:center}
+  .stat-val{font-size:28px;font-weight:800;color:#a78bfa}
+  .stat-label{font-size:11px;color:#64748b;margin-top:4px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{text-align:left;padding:8px 12px;border-bottom:2px solid #334155;color:#64748b;font-size:11px;text-transform:uppercase;letter-spacing:0.5px}
+  .section-box{background:#0f172a;border:1px solid #1e293b;border-radius:12px;padding:16px;margin-bottom:16px}
+  .section-box pre{white-space:pre-wrap;font-size:12px;color:#cbd5e1;line-height:1.6}
+  .badge{display:inline-block;padding:2px 10px;border-radius:100px;font-size:10px;font-weight:600}
+  .footer{margin-top:48px;padding-top:16px;border-top:1px solid #1e293b;text-align:center;color:#475569;font-size:11px}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Recursive Agent</h1>
+  <p class="meta">Mission Report · ${esc(missionId ?? "-")} · ${esc(now)}</p>
+
+  <div class="stat-grid">
+    <div class="stat"><div class="stat-val">${specialists.length}</div><div class="stat-label">Specialist Agents</div></div>
+    <div class="stat"><div class="stat-val">${totalSubs}</div><div class="stat-label">Sub-agents</div></div>
+    <div class="stat"><div class="stat-val">${totalSkills}</div><div class="stat-label">Skills Extracted</div></div>
+    <div class="stat"><div class="stat-val">${fleetSummary?.subAgentRuns.length ?? 0}</div><div class="stat-label">Fleet Runs</div></div>
+  </div>
+
+  <h2>Mission Prompt</h2>
+  <div class="section-box"><pre>${esc(missionPrompt || "(kosong)")}</pre></div>
+
+  ${motherBrief ? `<h2>Central Agent Brief</h2><div class="section-box"><pre>${esc(motherBrief)}</pre></div>` : ""}
+
+  <h2>Squad Composition</h2>
+  <table>
+    <thead><tr><th>Agent</th><th>Role</th><th>Lane</th><th>Skills</th><th>Subs</th><th>Purpose</th></tr></thead>
+    <tbody>${agentRows}</tbody>
+  </table>
+
+  ${subAgentCards ? `<h2>Fleet Execution Results</h2>${subAgentCards}` : ""}
+
+  ${motherReview ? `<h2>Quality Review</h2><div class="section-box"><pre>${esc(motherReview)}</pre></div>` : ""}
+
+  ${fleetSummary?.mergedReport ? `<h2>Merged Report</h2><div class="section-box"><pre>${esc(fleetSummary.mergedReport.slice(0, 12000))}${fleetSummary.mergedReport.length > 12000 ? "\n\n…(truncated)" : ""}</pre></div>` : ""}
+
+  <div class="footer">
+    Generated by <strong>Recursive Agent</strong> — Central Agent Orchestrator<br>
+    ${esc(now)}
+  </div>
+</div>
+</body>
+</html>`;
+}
+
+function esc(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+function MissionResultsTab({
+  fleetSummary,
+  specialists,
+  missionPrompt,
+  motherBrief,
+  motherReview,
+  centralSkillMd,
+  activeMissionId,
+}: {
+  fleetSummary: FleetOrchestrationSummary | null;
+  specialists: SpecialistAgentProfile[];
+  missionPrompt: string;
+  motherBrief: string | null;
+  motherReview: string | null;
+  centralSkillMd: string | null;
+  activeMissionId?: string | null;
+}) {
+  const [showRawReport, setShowRawReport] = useState(false);
+
+  const hasResults = specialists.length > 0;
+  const totalSkills = new Set(specialists.flatMap((s) => s.skills.map((sk) => sk.id))).size;
+  const totalSubs = specialists.reduce((n, s) => n + (s.subAgents?.length ?? 0), 0);
+
+  const handleDownload = () => {
+    const html = generateMissionReportHtml({
+      missionId: activeMissionId ?? null,
+      missionPrompt,
+      specialists,
+      fleetSummary,
+      motherBrief,
+      motherReview,
+    });
+    const blob = new Blob([html], { type: "text/html" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `mission-report-${activeMissionId ?? "draft"}.html`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  if (!hasResults) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
+        <Layers className="h-10 w-10 text-slate/40" />
+        <p className="text-sm text-slate">Belum ada hasil misi.</p>
+        <p className="text-xs text-slate/60">Jalankan misi dari chat panel untuk melihat hasil di sini.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      {/* Stats row */}
+      <div className="grid grid-cols-4 gap-2">
+        {[
+          { val: specialists.length, label: "Agents", color: "text-violet-400" },
+          { val: totalSubs, label: "Sub-agents", color: "text-cyan-400" },
+          { val: totalSkills, label: "Skills", color: "text-amber-400" },
+          { val: fleetSummary?.subAgentRuns.length ?? 0, label: "Fleet runs", color: "text-emerald-400" },
+        ].map((s) => (
+          <div key={s.label} className="rounded-xl border border-white/10 bg-black/30 p-3 text-center">
+            <div className={`text-xl font-bold ${s.color}`}>{s.val}</div>
+            <div className="text-[10px] text-slate">{s.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Download button */}
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={handleDownload}
+          className="flex items-center gap-1.5 rounded-xl bg-violet-500/20 border border-violet-500/30 px-4 py-2 text-xs font-semibold text-violet-300 hover:bg-violet-500/30 transition"
+        >
+          <Download className="h-3.5 w-3.5" />
+          Download Report (HTML)
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            const md = buildMarkdownReport({ missionId: activeMissionId ?? null, missionPrompt, specialists, fleetSummary, motherBrief, motherReview });
+            void navigator.clipboard.writeText(md);
+          }}
+          className="flex items-center gap-1.5 rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-xs font-semibold text-slate hover:bg-white/10 transition"
+        >
+          Copy as Markdown
+        </button>
+      </div>
+
+      {/* Central Agent Brief */}
+      {motherBrief && (
+        <div>
+          <h4 className="mb-2 text-xs font-bold uppercase tracking-wider text-violet-400">Central Agent Brief</h4>
+          <div className="rounded-xl border border-white/10 bg-black/30 p-3">
+            <p className="whitespace-pre-wrap text-xs leading-relaxed text-slate-200">{motherBrief.slice(0, 2000)}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Squad composition */}
+      <div>
+        <h4 className="mb-2 text-xs font-bold uppercase tracking-wider text-cyan-400">Squad Composition</h4>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {specialists.map((s) => (
+            <div key={s.name} className="rounded-xl border border-white/10 bg-black/30 p-3">
+              <div className="flex items-center gap-2 mb-1">
+                <span className={`h-2 w-2 rounded-full ${s.canvasLane === "frontend" ? "bg-amber-400" : s.canvasLane === "backend" ? "bg-cyan-400" : "bg-slate"}`} />
+                <span className="text-xs font-bold text-white">{s.name}</span>
+                <span className="ml-auto rounded-full border border-white/10 px-2 py-0.5 text-[9px] text-slate">{s.canvasLane ?? "general"}</span>
+              </div>
+              <p className="text-[11px] text-slate mb-1">{s.role} — {s.purpose.slice(0, 100)}</p>
+              <div className="flex gap-3 text-[10px] text-slate/70">
+                <span>{s.skills.length} skills</span>
+                <span>{s.subAgents?.length ?? 0} sub-agents</span>
+                <span>{s.orchestrationMode}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Fleet execution results */}
+      {fleetSummary && fleetSummary.subAgentRuns.length > 0 && (
+        <div>
+          <h4 className="mb-2 text-xs font-bold uppercase tracking-wider text-emerald-400">Fleet Execution</h4>
+          <div className="space-y-2">
+            {fleetSummary.subAgentRuns.map((run, i) => {
+              const isSkipped = run.source === "skipped";
+              return (
+                <details key={run.id ?? i} className="group rounded-xl border border-white/10 bg-black/30">
+                  <summary className="flex cursor-pointer items-center gap-2 p-3 text-xs">
+                    {isSkipped
+                      ? <XCircle className="h-3.5 w-3.5 text-red-400 shrink-0" />
+                      : <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                    }
+                    <span className="font-bold text-white">{run.role}</span>
+                    <span className={`rounded-full px-2 py-0.5 text-[9px] font-semibold ${
+                      run.source === "openclaw" ? "bg-violet-500/20 text-violet-300" :
+                      run.source === "openai-compat" ? "bg-cyan-500/20 text-cyan-300" :
+                      "bg-red-500/20 text-red-300"
+                    }`}>{run.source}</span>
+                    <span className="ml-auto text-[10px] text-slate">{run.focus.slice(0, 60)}</span>
+                    <ChevronDown className="h-3 w-3 text-slate transition group-open:rotate-180" />
+                  </summary>
+                  <div className="border-t border-white/5 p-3">
+                    <pre className="max-h-60 overflow-auto whitespace-pre-wrap rounded-lg bg-black/50 p-2 font-mono text-[11px] text-slate-200">
+                      {run.output.slice(0, 4000)}{run.output.length > 4000 ? "\n\n…(truncated)" : ""}
+                    </pre>
+                  </div>
+                </details>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Quality Review */}
+      {motherReview && (
+        <div>
+          <h4 className="mb-2 text-xs font-bold uppercase tracking-wider text-amber-400">Quality Review</h4>
+          <div className="rounded-xl border border-white/10 bg-black/30 p-3">
+            <pre className="whitespace-pre-wrap text-xs leading-relaxed text-slate-200">{motherReview.slice(0, 4000)}</pre>
+          </div>
+        </div>
+      )}
+
+      {/* Raw merged report toggle */}
+      {fleetSummary?.mergedReport && (
+        <div>
+          <button
+            type="button"
+            onClick={() => setShowRawReport(!showRawReport)}
+            className="flex items-center gap-1 text-[11px] text-slate hover:text-white transition"
+          >
+            <ChevronRight className={`h-3 w-3 transition ${showRawReport ? "rotate-90" : ""}`} />
+            {showRawReport ? "Sembunyikan" : "Lihat"} raw merged report
+          </button>
+          {showRawReport && (
+            <pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap rounded-xl border border-white/10 bg-black/50 p-3 font-mono text-[11px] text-slate-300">
+              {fleetSummary.mergedReport}
+            </pre>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function buildMarkdownReport(opts: {
+  missionId: string | null;
+  missionPrompt: string;
+  specialists: SpecialistAgentProfile[];
+  fleetSummary: FleetOrchestrationSummary | null;
+  motherBrief: string | null;
+  motherReview: string | null;
+}): string {
+  const { missionId, missionPrompt, specialists, fleetSummary, motherBrief, motherReview } = opts;
+  const totalSkills = new Set(specialists.flatMap((s) => s.skills.map((sk) => sk.id))).size;
+  const totalSubs = specialists.reduce((n, s) => n + (s.subAgents?.length ?? 0), 0);
+  const lines: string[] = [
+    "# Recursive Agent — Mission Report",
+    "",
+    `**Mission ID:** ${missionId ?? "-"}`,
+    `**Date:** ${new Date().toLocaleString()}`,
+    `**Agents:** ${specialists.length} | **Sub-agents:** ${totalSubs} | **Skills:** ${totalSkills}`,
+    "",
+    "## Mission Prompt",
+    "",
+    missionPrompt || "(kosong)",
+    "",
+  ];
+
+  if (motherBrief) {
+    lines.push("## Central Agent Brief", "", motherBrief, "");
+  }
+
+  lines.push("## Squad", "");
+  lines.push("| Agent | Role | Lane | Skills | Subs |", "|-------|------|------|--------|------|");
+  for (const s of specialists) {
+    lines.push(`| ${s.name} | ${s.role} | ${s.canvasLane ?? "general"} | ${s.skills.length} | ${s.subAgents?.length ?? 0} |`);
+  }
+  lines.push("");
+
+  if (fleetSummary) {
+    lines.push("## Fleet Execution", "");
+    for (const run of fleetSummary.subAgentRuns) {
+      lines.push(`### ${run.role} (${run.source})`, "", `**Focus:** ${run.focus}`, "", "```", run.output.slice(0, 4000), "```", "");
+    }
+  }
+
+  if (motherReview) {
+    lines.push("## Quality Review", "", motherReview, "");
+  }
+
+  lines.push("---", "", "*Generated by Recursive Agent*");
+  return lines.join("\n");
 }

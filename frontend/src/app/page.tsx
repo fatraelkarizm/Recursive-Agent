@@ -295,6 +295,8 @@ export default function Page() {
         agentsBusy={agentsBusy}
         centralSkillMd={centralSkillMd}
         centralReadmeMd={centralReadmeMd}
+        motherBrief={motherBrief}
+        motherReview={motherReview}
       />
       <AgentDashboardModal
         open={dashTarget !== null}

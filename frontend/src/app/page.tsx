@@ -1,0 +1,114 @@
+"use client";
+
+import dynamic from "next/dynamic";
+import { useState } from "react";
+import { nanoid } from "nanoid";
+import { ControlChatPanel } from "@/components/control-chat-panel";
+import { TerminalDrawer } from "@/components/terminal-drawer";
+import { VitalsPanel } from "@/components/vitals-panel";
+import { WorkspaceRail, type WorkspaceRecipe } from "@/components/workspace-rail";
+import { createMission } from "@/lib/api";
+import type { ChatMessage, SpecialistAgentProfile } from "@/lib/types";
+
+const MissionCanvas = dynamic(
+  () => import("@/components/mission-canvas").then((mod) => ({ default: mod.MissionCanvas })),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex min-h-[420px] flex-1 items-center justify-center rounded-xl border border-white/10 bg-slate-950/50 text-sm text-slate">
+        Loading mission canvas…
+      </div>
+    )
+  }
+);
+
+const initialProfile: SpecialistAgentProfile = {
+  name: "Pending Agent",
+  role: "pending",
+  purpose: "Run a focused mission based on user chat",
+  systemInstructions: "",
+  allowedTools: [],
+  outputFormat: "markdown",
+  apiKeyRefs: [],
+  notes: ""
+};
+
+export default function Page() {
+  const [prompt, setPrompt] = useState("");
+  const [status, setStatus] = useState("idle");
+  const [profile, setProfile] = useState<SpecialistAgentProfile>(initialProfile);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [selectedRecipeId, setSelectedRecipeId] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  function handleSelectRecipe(recipe: WorkspaceRecipe) {
+    setSelectedRecipeId(recipe.id);
+    setPrompt(recipe.prompt);
+  }
+
+  async function handleRunMission() {
+    if (!prompt.trim()) return;
+    setBusy(true);
+    setStatus("running");
+    try {
+      const result = await createMission({ prompt });
+      setProfile(result.profile);
+      setStatus(result.status);
+      const lines = [
+        `Mission ${result.missionId} → ${result.status}`,
+        ...(result.events ?? []).map((event) => `• ${event}`)
+      ];
+      setMessages((current) => [
+        ...current,
+        {
+          id: nanoid(),
+          role: "assistant",
+          content: lines.join("\n"),
+          at: Date.now()
+        }
+      ]);
+    } catch (error) {
+      console.error(error);
+      setStatus("failed");
+      setMessages((current) => [
+        ...current,
+        {
+          id: nanoid(),
+          role: "assistant",
+          content:
+            "Mission failed before reaching the worker. Start the backend (`cd backend && npm run dev`) and confirm `NEXT_PUBLIC_BACKEND_URL` points to it.",
+          at: Date.now()
+        }
+      ]);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <main className="flex h-screen min-h-[720px] flex-col bg-navy text-white">
+      <div className="flex min-h-0 flex-1">
+        <WorkspaceRail selectedId={selectedRecipeId} onSelectRecipe={handleSelectRecipe} />
+
+        <section className="flex min-w-0 flex-1 flex-col gap-3 p-4">
+          <MissionCanvas status={status} />
+          <div className="grid shrink-0 grid-cols-1 gap-3 lg:grid-cols-2">
+            <VitalsPanel status={status} />
+            <TerminalDrawer events={messages.filter((m) => m.role === "assistant").slice(-1)} />
+          </div>
+        </section>
+
+        <ControlChatPanel
+          messages={messages}
+          onMessagesChange={setMessages}
+          prompt={prompt}
+          onPromptChange={setPrompt}
+          status={status}
+          profile={profile}
+          onRunMission={handleRunMission}
+          busy={busy}
+        />
+      </div>
+    </main>
+  );
+}

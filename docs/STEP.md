@@ -98,10 +98,24 @@ mkdir backend
 ## 2. Bootstrap The Frontend
 Create the frontend app first.
 
+**Option A — interactive wizard**
+
 ```bash
-cd frontend
-npx create-next-app@latest . --typescript --tailwind --eslint --app --src-dir --import-alias "@/*"
+npx create-next-app@latest
 ```
+
+Choose TypeScript, Tailwind, ESLint, App Router, `src/`, import alias `@/*`, and output directory `frontend` (or create `frontend`, `cd frontend`, then run the wizard with project name `.` inside that empty folder).
+
+**Option B — one shot from repo root (no prompts)**
+
+```bash
+npx create-next-app@latest frontend --ts --tailwind --eslint --app --src-dir --import-alias "@/*" --use-npm --yes
+cd frontend
+```
+
+Skip Option A/B if this repository already contains `frontend/` with code; only run `npm install` there.
+
+If `npx create-next-app` reports **directory contains files that could conflict**, see the troubleshooting block in [SETUP.md](./SETUP.md) §1 (rename `frontend` or skip the command).
 
 Install the UI, graph, and client packages:
 

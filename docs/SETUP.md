@@ -27,14 +27,40 @@ cd frontend && npm run dev
 For a step-by-step audit of what is implemented vs pending, read [STEP.md](./STEP.md).
 
 ## 1. Create The App Shell
-If the app does not exist yet, create a fresh Next.js project with the App Router, TypeScript, Tailwind, and ESLint.
+If the app does not exist yet, scaffold Next.js with the official CLI.
+
+**Interactive (wizard, recommended the first time you run it)**
 
 ```bash
-npx create-next-app@latest recursive-agent --typescript --tailwind --eslint --app --src-dir --import-alias "@/*"
-cd recursive-agent
+npx create-next-app@latest
 ```
 
-If the project already exists, skip this step and continue to dependency installation.
+Pick TypeScript, Tailwind, ESLint, App Router, and `src/`. Use folder name `frontend` if you are following this monorepo layout.
+
+**Non-interactive (same defaults, no prompts)**
+
+From the repository root (only if `frontend/` does **not** already exist):
+
+```bash
+npx create-next-app@latest frontend --ts --tailwind --eslint --app --src-dir --import-alias "@/*" --use-npm --yes
+cd frontend
+```
+
+If `frontend/` already exists (for example after cloning this repo), skip creation and only run `npm install` inside `frontend/`.
+
+### If you see: "The directory frontend contains files that could conflict"
+That is normal. `create-next-app` will not overwrite a non-empty app folder.
+
+Pick one:
+
+1. **Keep the existing app (usual for this repo)** — do not run `create-next-app` again. From repo root: `cd frontend && npm install && npm run dev`.
+
+2. **Really want a brand-new Next scaffold named `frontend`** — move the old app aside, then run the same `npx` line again (PowerShell from `E:\hackathon\agenthon`):
+   ```powershell
+   Rename-Item -Path frontend -NewName frontend_backup
+   npx create-next-app@latest frontend --ts --tailwind --eslint --app --src-dir --import-alias "@/*" --use-npm --yes
+   ```
+   Then copy your custom code from `frontend_backup\src` into the new `frontend\src` (and merge `package.json` / env files as needed). Delete `frontend_backup` when you are done.
 
 ## 2. Install Core Dependencies
 Install the packages that cover agent orchestration, AI clients, graph UI, validation, execution, and app polish.

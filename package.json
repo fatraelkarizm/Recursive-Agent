@@ -1,0 +1,17 @@
+{
+  "name": "autonomous-architect-boilerplate",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "scripts": {
+    "dev:frontend": "npm --workspace frontend run dev",
+    "dev:backend": "npm --workspace backend run dev",
+    "dev": "npm run dev:backend"
+  },
+  "overrides": {
+    "eslint": "9.39.4"
+  }
+}

@@ -9,7 +9,12 @@ Recursive Agent changes that. A user can describe what they want in plain chat, 
 
 The product is designed to feel like a mission control dashboard rather than a hidden chat bot. It makes the agent structure visible, editable, and easy to understand.
 
-This repository currently serves as the specification and launchpad for Recursive Agent. It contains the design, infrastructure, setup guidance, and dependency registry needed to build the implementation from scratch.
+## Current Repository Status
+This repository is a **working monorepo slice**:
+- **`frontend/`** — Next.js 14 (App Router) dashboard with a three-column mission control UI, React Flow workflow canvas, and REST client to the worker.
+- **`backend/`** — Express worker with a mother-agent mission path, stub tool routing, and optional E2B wiring (see `backend/src`).
+
+Older narrative docs still describe the full target product; **for “what exists in Git today” and the fastest path to run it, start with [docs/STEP.md](./docs/STEP.md).**
 
 ## Product Story
 The user experience should feel like this:
@@ -37,26 +42,30 @@ The user experience should feel like this:
 - It can be shown well in a short demo because the agent actions are visible in the UI and logs.
 - It has a practical extension story through MCP integrations, sandbox execution, and persistent memory.
 
-## Current Repository Status
-The repository is docs-first. There is not yet a committed application source tree in this folder, so the setup instructions below are the canonical path to bootstrap the implementation.
+## Mission Control UI (implemented layout)
+The dashboard follows a **visual workflow builder** metaphor (similar to n8n-style canvases):
+- **Left rail** — Recipes that prefill prompts plus an “API & integrations” strip (mother worker route, MCP, E2B, env files). This is the “palette” for what the system can connect to.
+- **Center canvas** — `@xyflow/react` graph: trigger → mother agent (model / memory / tools) → policy branch → tool-heavy vs sandbox paths. Status rings reflect the latest mission state.
+- **Right column** — **Control chat**: send a mission, read assistant handoffs, and inspect the generated specialist profile under the thread.
+- **Below the canvas** — Vitals plus a compact terminal/audit readout fed by the latest assistant message.
 
 ## Suggested Tech Stack
-- Frontend and API shell: Next.js 14+ with TypeScript
+- Frontend and API shell: Next.js Latest with TypeScript
 - Orchestration: LangGraph.js and an OpenClaw-style mother agent layer
 - Tool access: Model Context Protocol servers and Vercel AI SDK clients
 - Execution sandbox: E2B
 - Persistence: PostgreSQL plus Redis or queue support
-- UI: Tailwind CSS, Framer Motion, Lucide icons, and a graph canvas library
+- UI: Tailwind CSS, Framer Motion, Lucide icons, and `@xyflow/react` for the graph canvas
 - Observability: structured logs, error tracking, and audit events
 
-## Recommended Project Structure
-- `src/app` for routing and page composition
-- `src/components` for dashboard panels and reusable UI blocks
-- `src/lib/agent` for orchestration, tool routing, and state handling
-- `src/lib/mcp` for MCP clients and adapters
-- `src/lib/sandbox` for E2B execution helpers
-- `src/lib/db` for persistence and audit logs
-- `src/config` for runtime and feature flags
+## Repository Layout (this codebase)
+```text
+frontend/src/app          # Next.js routes and shell
+frontend/src/components   # Mission UI modules (canvas, chat, rail, vitals, terminal)
+frontend/src/lib          # API client, types, helpers
+backend/src               # Express server, mother agent, tools, sandbox stubs
+docs/                     # Product + build documentation (STEP.md is the runbook)
+```
 
 ## Specialist Agent Model
 Each generated agent should have a clear profile with:
@@ -71,13 +80,24 @@ Each generated agent should have a clear profile with:
 
 The user should be able to see and edit that profile before the agent is finalized.
 
-## Installation And Setup
-Follow [SETUP.md](./docs/SETUP.md) for the full bootstrap flow. The short version is:
-1. Create the Next.js app with TypeScript, App Router, and Tailwind.
-2. Install the agent, UI, sandbox, validation, and observability packages.
-3. Add the required environment variables.
-4. Configure any MCP servers that run outside the browser or application process.
-5. Start the dev server and verify the main end-to-end flow.
+## Installation And Run (this repo)
+1. Install dependencies:
+   ```bash
+   cd frontend && npm install
+   cd ../backend && npm install
+   ```
+2. Copy environment templates if you use keys (never commit secrets). See [SETUP.md](./docs/SETUP.md).
+3. Start the worker, then the UI:
+   ```bash
+   # terminal A
+   cd backend && npm run dev
+
+   # terminal B
+   cd frontend && npm run dev
+   ```
+4. Open `http://localhost:3000`. The UI calls `http://localhost:4000` by default. Override with `NEXT_PUBLIC_BACKEND_URL` in `frontend/.env.local` if needed.
+
+For greenfield bootstrap, use `npx create-next-app@latest` (wizard) or the non-interactive one-liner in [SETUP.md](./docs/SETUP.md). This repo already ships a `frontend/` app; optional packages and MCP hosts are covered there too.
 
 ## Environment Variables
 The implementation will need values for:
@@ -98,14 +118,14 @@ See [SETUP.md](./docs/SETUP.md) and [LIBRARY.md](./docs/LIBRARY.md) for the exac
 - Specialist agents should be easy to create without forcing the user to think like a developer.
 
 ## Documentation Index
-- [STEP.md](./docs/STEP.md) - Build order from workspace bootstrap to a running app
-- [SETUP.md](./docs/SETUP.md) - Bootstrap commands and environment setup
-- [LIBRARY.md](./docs/LIBRARY.md) - Dependency and MCP registry
-- [DESIGN.md](./docs/DESIGN.md) - UI system and interaction model
-- [INFRASTRUCTURE.md](./docs/INFRASTRUCTURE.md) - Runtime architecture and deployment model
-- [MEM9_OPENCLAW.md](./docs/MEM9_OPENCLAW.md) - mem9 status and OpenClaw setup notes
-- [COMMIT.md](./docs/COMMIT.md) - Commit and branch workflow
-- [REQUIREMENTS.md](./docs/REQUIREMENTS.md) - Hackathon requirement reference
+- [STEP.md](./docs/STEP.md) — **Start here:** what is implemented, checklists, and copy-paste run order
+- [SETUP.md](./docs/SETUP.md) — Bootstrap commands and environment setup
+- [LIBRARY.md](./docs/LIBRARY.md) — Dependency and MCP registry
+- [DESIGN.md](./docs/DESIGN.md) — UI system and interaction model (includes the three-column layout)
+- [INFRASTRUCTURE.md](./docs/INFRASTRUCTURE.md) — Runtime architecture and deployment model
+- [MEM9_OPENCLAW.md](./docs/MEM9_OPENCLAW.md) — mem9 status and OpenClaw setup notes
+- [COMMIT.md](./docs/COMMIT.md) — Commit and branch workflow
+- [REQUIREMENTS.md](./docs/REQUIREMENTS.md) — Hackathon requirement reference
 
 ## Implementation Notes
 - Do not assume all agent or MCP packages run on Edge runtime.

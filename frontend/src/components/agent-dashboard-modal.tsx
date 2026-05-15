@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Copy, ExternalLink, X } from "lucide-react";
+import { ChevronDown, ChevronRight, Copy, ExternalLink, Globe, Search, Wrench, X, Zap } from "lucide-react";
 import { fetchRuntimeDiagnostics } from "@/lib/api";
 import { extractFirstHtmlFence, findReadmeWithHtmlFence } from "@/lib/extract-html-fence";
 import { extractHttpUrlsFromText } from "@/lib/extract-urls";
@@ -9,6 +9,7 @@ import type {
   FleetOrchestrationSummary,
   PublicRuntimeDiagnostics,
   SpecialistAgentProfile,
+  SpecialistSkill,
   SubAgentRunResult
 } from "@/lib/types";
 
@@ -475,31 +476,11 @@ export function AgentDashboardModal({
           )}
 
           {tab === "skill" && (
-            <div className="space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-xs text-slate">
-                  Playbook agent: skills, tools, larangan — dipakai Central Agent & fleet.
-                </p>
-                {skillMd.trim() ? (
-                  <button
-                    type="button"
-                    className="shrink-0 rounded border border-white/15 bg-white/5 px-2 py-1 text-[10px] text-electric hover:bg-white/10"
-                    onClick={() => void navigator.clipboard.writeText(skillMd)}
-                  >
-                    Copy SKILL
-                  </button>
-                ) : null}
-              </div>
-              {skillMd.trim() ? (
-                <pre className="max-h-[min(68vh,680px)] overflow-auto whitespace-pre-wrap rounded-lg border border-violet-400/20 bg-violet-500/5 p-3 font-mono text-[12px] leading-relaxed text-slate-100 sm:text-[13px]">
-                  {skillMd}
-                </pre>
-              ) : (
-                <p className="text-sm text-slate">
-                  Belum ada SKILL.md — jalankan misi lagi setelah restart backend.
-                </p>
-              )}
-            </div>
+            <AgentSkillCards
+              skillMd={skillMd}
+              skills={isSub ? [] : (activeSpecialist?.skills ?? [])}
+              agentName={isSub ? (subDesc?.role ?? "sub-agent") : (specialist?.name ?? "Agent")}
+            />
           )}
 
           {tab === "readme" && (
@@ -662,6 +643,203 @@ export function AgentDashboardModal({
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function skillKindIcon(kind: string) {
+  const cls = "h-4 w-4 shrink-0";
+  if (kind === "touch") return <Search className={`${cls} text-cyan-400`} />;
+  if (kind === "generate") return <Wrench className={`${cls} text-amber-400`} />;
+  if (kind === "orchestrate") return <Zap className={`${cls} text-violet-400`} />;
+  return <Globe className={`${cls} text-slate`} />;
+}
+
+function skillKindStyle(kind: string) {
+  if (kind === "touch") return "border-cyan-500/40 bg-cyan-500/5 hover:bg-cyan-500/10";
+  if (kind === "generate") return "border-amber-500/40 bg-amber-500/5 hover:bg-amber-500/10";
+  if (kind === "orchestrate") return "border-violet-500/40 bg-violet-500/5 hover:bg-violet-500/10";
+  return "border-white/10 bg-white/[0.03] hover:bg-white/[0.06]";
+}
+
+function skillKindLabel(kind: string) {
+  if (kind === "touch") return "Riset";
+  if (kind === "generate") return "Generate";
+  if (kind === "orchestrate") return "Orkestrasi";
+  return "Skill";
+}
+
+type SkillCardItem = {
+  id: string;
+  label: string;
+  description: string;
+  kind: string;
+};
+
+function AgentSkillCards({ skillMd, skills, agentName }: {
+  skillMd: string;
+  skills: SpecialistSkill[];
+  agentName: string;
+}) {
+  const [expanded, setExpanded] = useState<string | null>(null);
+
+  const allSkills = useMemo((): SkillCardItem[] => {
+    const items: SkillCardItem[] = [];
+    const seen = new Set<string>();
+
+    for (const sk of skills) {
+      if (!seen.has(sk.id)) {
+        seen.add(sk.id);
+        items.push({ id: sk.id, label: sk.label, description: sk.description, kind: sk.kind });
+      }
+    }
+
+    if (skillMd.trim()) {
+      const lines = skillMd.split("\n").map((l) => l.trim()).filter(Boolean);
+      for (const line of lines) {
+        const m = line.match(/^(.+?)\.\s+(.+)$/);
+        if (m && m[1].length < 80 && m[2].length > 10) {
+          const label = m[1].trim();
+          const id = label.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 48);
+          if (seen.has(id)) continue;
+          seen.add(id);
+          const rest = m[2].trim();
+          const kindMatch = rest.match(/Jenis:\s*(\w+)/i);
+          const kind = kindMatch?.[1]?.toLowerCase() ?? "other";
+          const desc = rest.replace(/Jenis:\s*\w+\.?/i, "").replace(/\((?:sumber|dari):\s*.+?\)/i, "").trim();
+          items.push({ id, label, description: desc || rest, kind });
+        }
+      }
+    }
+
+    return items;
+  }, [skills, skillMd]);
+
+  if (allSkills.length === 0 && !skillMd.trim()) {
+    return (
+      <div className="space-y-3">
+        <p className="text-sm text-slate">Belum ada SKILL.md. Jalankan misi untuk extract skills dari web.</p>
+      </div>
+    );
+  }
+
+  const byKind: Record<string, SkillCardItem[]> = {};
+  for (const sk of allSkills) {
+    const k = ["touch", "generate", "orchestrate"].includes(sk.kind) ? sk.kind : "other";
+    (byKind[k] ??= []).push(sk);
+  }
+  const kindOrder = ["touch", "generate", "orchestrate", "other"];
+  const groups = kindOrder.map((k) => ({ kind: k, items: byKind[k] ?? [] })).filter((g) => g.items.length > 0);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs text-slate">
+          SKILL {agentName} — {allSkills.length} skills dari Central Agent + web extraction.
+        </p>
+        {skillMd.trim() ? (
+          <button
+            type="button"
+            className="shrink-0 rounded border border-white/15 bg-white/5 px-2 py-1 text-[10px] text-electric hover:bg-white/10"
+            onClick={() => void navigator.clipboard.writeText(skillMd)}
+          >
+            Copy raw
+          </button>
+        ) : null}
+      </div>
+
+      <div className="grid gap-2 sm:grid-cols-3">
+        {allSkills.slice(0, 9).map((sk) => {
+          const isOpen = expanded === sk.id;
+          return (
+            <button
+              key={sk.id}
+              type="button"
+              onClick={() => setExpanded(isOpen ? null : sk.id)}
+              className={`flex flex-col gap-1.5 rounded-xl border p-3 text-left transition ${skillKindStyle(sk.kind)}`}
+            >
+              <div className="flex items-center gap-2">
+                {skillKindIcon(sk.kind)}
+                <span className="flex-1 truncate text-xs font-semibold text-white">{sk.label}</span>
+                {isOpen ? <ChevronDown className="h-3 w-3 text-slate" /> : <ChevronRight className="h-3 w-3 text-slate" />}
+              </div>
+              <span className="text-[10px] text-slate">{skillKindLabel(sk.kind)}</span>
+              {isOpen && (
+                <p className="mt-1 border-t border-white/10 pt-2 text-[11px] leading-relaxed text-slate-200">
+                  {sk.description}
+                </p>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {allSkills.length > 9 && (
+        <div className="space-y-2">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate">Semua skills ({allSkills.length})</p>
+          {groups.map((g) => (
+            <SkillKindGroup key={g.kind} kind={g.kind} items={g.items} expanded={expanded} onToggle={setExpanded} />
+          ))}
+        </div>
+      )}
+
+      {allSkills.length <= 9 && groups.length > 1 && (
+        <div className="flex flex-wrap gap-2 text-[10px]">
+          {groups.map((g) => (
+            <span key={g.kind} className={`rounded-full border px-2.5 py-0.5 ${skillKindStyle(g.kind)}`}>
+              {skillKindLabel(g.kind)}: {g.items.length}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SkillKindGroup({ kind, items, expanded, onToggle }: {
+  kind: string;
+  items: SkillCardItem[];
+  expanded: string | null;
+  onToggle: (id: string | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="rounded-lg border border-white/10 bg-black/20">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-white/5"
+      >
+        {open ? <ChevronDown className="h-3 w-3 text-slate" /> : <ChevronRight className="h-3 w-3 text-slate" />}
+        {skillKindIcon(kind)}
+        <span className="flex-1 text-xs font-semibold text-white">{skillKindLabel(kind)}</span>
+        <span className="text-[10px] font-mono text-slate">{items.length}</span>
+      </button>
+      {open && (
+        <div className="grid gap-1.5 px-3 pb-3 sm:grid-cols-3">
+          {items.map((sk) => {
+            const isExp = expanded === sk.id;
+            return (
+              <button
+                key={sk.id}
+                type="button"
+                onClick={() => onToggle(isExp ? null : sk.id)}
+                className={`flex flex-col gap-1 rounded-lg border p-2 text-left transition ${skillKindStyle(sk.kind)}`}
+              >
+                <div className="flex items-center gap-1.5">
+                  <span className="flex-1 truncate text-[11px] font-medium text-white">{sk.label}</span>
+                  {isExp ? <ChevronDown className="h-3 w-3 text-slate" /> : <ChevronRight className="h-3 w-3 text-slate" />}
+                </div>
+                {isExp && (
+                  <p className="mt-1 border-t border-white/10 pt-1.5 text-[10px] leading-relaxed text-slate-200">
+                    {sk.description}
+                  </p>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

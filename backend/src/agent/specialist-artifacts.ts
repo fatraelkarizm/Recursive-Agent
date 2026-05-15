@@ -123,31 +123,39 @@ export function buildSpecialistSkillMd(profile: SpecialistAgentProfile, missionP
 }
 
 export function buildSpecialistReadme(profile: SpecialistAgentProfile, missionPrompt: string): string {
+  const subCount = profile.subAgents?.length ?? 0;
+  const skillCount = profile.skills.length;
+
   const raw = [
     profile.name,
     "",
-    "Dibuat oleh Central Agent Recursive Agent.",
+    "Tentang agent ini",
+    profile.purpose,
     "",
-    "Peran",
-    `Role ${profile.role}`,
-    `Purpose ${profile.purpose}`,
+    `Agent ini adalah ${profile.role} specialist yang di-produce oleh Central Agent Recursive Agent.`,
+    profile.canvasLane === "frontend"
+      ? "Bertugas di lane frontend untuk mengerjakan sisi tampilan, UI, dan interaksi user."
+      : profile.canvasLane === "backend"
+        ? "Bertugas di lane backend untuk mengerjakan logika server, API, dan data."
+        : "Bertugas di lane general untuk mengerjakan tugas lintas domain.",
     "",
-    "Misi awal",
-    missionPrompt.trim() || "(kosong)",
+    "Kapabilitas",
+    `Agent ini memiliki ${skillCount} skill yang di-extract real-time dari web oleh Central Agent.`,
+    `Mode orkestrasi: ${profile.orchestrationMode}.`,
+    subCount > 0 ? `Memiliki ${subCount} sub-agent (scout, worker, reviewer) untuk eksekusi misi.` : "Tidak memiliki sub-agent.",
     "",
-    "Skills",
-    skillsPlainBlock(profile.skills),
+    "Instruksi",
+    profile.systemInstructions || "Mengikuti instruksi default Central Agent.",
     "",
-    "Tools",
-    profile.allowedTools.length ? profile.allowedTools.join(", ") : "tidak ada",
+    "Tools yang tersedia",
+    profile.allowedTools.length ? profile.allowedTools.join(", ") : "Tidak ada tools khusus.",
     "",
-    "Instruksi sistem",
-    profile.systemInstructions || "Default Central Agent.",
+    "Spesialisasi",
+    profile.specializations.join(", ") || "core-mission",
     "",
-    "Output",
-    `Format ${profile.outputFormat}`,
+    `Output format: ${profile.outputFormat}.`,
     "",
-    "Lihat tab SKILL untuk playbook lengkap."
+    "Lihat tab SKILL.md untuk daftar lengkap semua skill agent ini."
   ].join("\n");
 
   return stripMarkdownToPlainText(raw);
@@ -250,32 +258,49 @@ export function buildCentralAgentSkillMd(
   return stripMarkdownToPlainText(sections.join("\n"));
 }
 
-/** Build Central Agent's own README.md summarizing the full mission and all agents produced. */
+/** Build Central Agent's own README.md describing what it is and what it produced. */
 export function buildCentralAgentReadme(
   squad: SpecialistAgentProfile[],
   missionPrompt: string,
   motherBrief: string
 ): string {
+  const totalSkills = new Set(squad.flatMap((s) => s.skills.map((sk) => sk.id))).size;
+  const totalSubs = squad.reduce((n, s) => n + (s.subAgents?.length ?? 0), 0);
+
   const sections: string[] = [
     "Central Agent (Recursive Agent)",
     "",
-    "README Central Agent",
+    "Tentang Central Agent",
+    "Central Agent adalah orchestrator utama dari Recursive Agent.",
+    "Tugasnya adalah menerima misi dari user, melakukan riset web real-time, mengekstrak skill dari internet, dan memproduce squad specialist agent yang masing-masing punya keahlian spesifik.",
     "",
-    "Misi",
-    stripMarkdownToPlainText(missionPrompt.trim().slice(0, 2000) || "(kosong)"),
+    "Apa yang dilakukan Central Agent",
+    "1. Menerima misi dan melakukan riset web otomatis via Tavily",
+    "2. Mengekstrak SKILL.md, dokumentasi, dan best practices dari GitHub dan web",
+    "3. Merancang squad specialist berdasarkan kebutuhan misi",
+    "4. Meng-inject skill yang ditemukan ke setiap specialist dan sub-agent",
+    "5. Menjalankan fleet sub-agent (scout, worker, reviewer) via OpenClaw",
+    "6. Melakukan quality review terhadap output setiap agent",
     "",
-    "Central Brief",
-    stripMarkdownToPlainText(motherBrief.trim().slice(0, 1000) || "(kosong)"),
+    "Pemikiran Central Agent",
+    stripMarkdownToPlainText(motherBrief.trim().slice(0, 1500) || "(belum ada brief)"),
     "",
-    `Squad (${squad.length} specialist)`,
+    `Squad yang diproduce (${squad.length} specialist, ${totalSubs} sub-agent, ${totalSkills} skill unik)`,
     ...squad.map((s) => {
-      const skillCount = s.skills.length;
       const subCount = s.subAgents?.length ?? 0;
-      return `${s.name}. Role ${s.role}. ${s.purpose}. ${skillCount} skills. ${subCount} sub-agents.`;
+      return [
+        `${s.name}`,
+        `  Role: ${s.role}`,
+        `  Lane: ${s.canvasLane ?? "general"}`,
+        `  ${s.purpose}`,
+        `  ${s.skills.length} skills, ${subCount} sub-agent, mode ${s.orchestrationMode}`
+      ].join("\n");
     }),
     "",
-    "Semua specialist di atas di-produce oleh Central Agent dengan skill yang di-extract real-time dari web.",
-    "Lihat tab SKILL untuk daftar lengkap semua skill yang dimiliki Central Agent."
+    "Misi yang diterima",
+    stripMarkdownToPlainText(missionPrompt.trim().slice(0, 1500) || "(kosong)"),
+    "",
+    "Lihat tab SKILL.md untuk daftar lengkap semua skill yang dimiliki Central Agent."
   ];
 
   return stripMarkdownToPlainText(sections.join("\n"));

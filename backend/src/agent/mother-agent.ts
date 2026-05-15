@@ -10,6 +10,7 @@ import { buildSpecialistReadme, buildSpecialistSkills } from "./specialist-artif
 import { runToolRoute } from "./tool-router";
 import { runSandboxTask } from "../sandbox/e2b";
 import { browserTouchFromPrompt } from "../capabilities/browser";
+import { enrichProfileReadmeWithSumopod } from "../compat/openai-compatible-chat";
 import { persistMissionResult } from "../db/mission-store";
 
 function randomId(length = 8): string {
@@ -72,6 +73,7 @@ export function generateSpecialistProfile(prompt: string): SpecialistAgentProfil
 export async function runMission(payload: MissionPayload): Promise<MissionResult> {
   const missionId = randomId(10);
   const profile = generateSpecialistProfile(payload.prompt);
+  await enrichProfileReadmeWithSumopod(profile, payload.prompt);
   const graph = buildMissionGraph(profile);
   const events: string[] = [`Mission graph steps: ${graph.steps.join(" -> ")}`];
 

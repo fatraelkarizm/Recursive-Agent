@@ -31,7 +31,11 @@ The worker then runs (in order):
 | `OPENCLAW_SESSION_PREFIX` | Optional prefix for `--session-id` (`recursive-agent-<missionId>` if unset). |
 | `OPENCLAW_USE_LOCAL` | Set to `0` to omit `--local` (gateway mode). Default: local embedded run. |
 | `OPENCLAW_MODEL` | Paksa model per panggilan CLI, mis. `deepseek/deepseek-v4-pro` (supaya run dari API tidak pakai default `zai/glm` di config global). |
-| `DEEPSEEK_API_KEY` | Key DeepSeek; taruh di **`backend/.env`** — ikut ke proses `openclaw` lewat `process.env` (lihat bagian di bawah). |
+| `DEEPSEEK_API_KEY` | Key DeepSeek; taruh di **`backend/.env`** — ikut ke proses `openclaw` lewat `process.env` (lihat bagian di bawah). Juga dipakai sebagai **Bearer** gateway OpenAI-compatible jika `OPENAI_COMPAT_API_KEY` kosong. |
+| `OPENAI_COMPAT_BASE_URL` | Mis. `https://ai.sumopod.com/v1` — endpoint `chat/completions` di-append di server (`backend/src/compat/openai-compatible-chat.ts`). |
+| `OPENAI_COMPAT_API_KEY` | Bearer opsional; jika kosong dipakai `DEEPSEEK_API_KEY`. |
+| `OPENAI_COMPAT_MODEL` | Id model upstream (default `gpt-4o-mini`). |
+| `OPENAI_COMPAT_TIMEOUT_MS` | Timeout HTTP (default `45000`). |
 | `OPENCLAW_TIMEOUT_MS` | CLI timeout (default `120000`). |
 | `BROWSER_AUTOMATION` | Set to `0` to skip the Tavily “web read” step (misnamed for backward compat). |
 | `BROWSER_DEFAULT_URL` | Fallback URL when the prompt has no `http(s)` link. |
@@ -102,6 +106,19 @@ OPENCLAW_MODEL=deepseek/deepseek-v4-pro
 Kalau masih ke **zai**, biasanya salah satu: (a) `--model` tidak dipakai untuk jalur itu — naikkan versi OpenClaw atau cek log; (b) key DeepSeek tidak terbaca — pastikan kamu **start worker dari folder `backend`** atau `dotenv` memang memuat file yang berisi `DEEPSEEK_API_KEY`; (c) auth global memaksa provider lain — sesuaikan `~/.openclaw/openclaw.json` atau nonaktifkan profil zai sementara untuk tes.
 
 If this fails, the API still returns `200`; the mission `events[]` will contain the hint from the bridge.
+
+### SumoPod (curl OpenAI-compatible) ↔ env backend
+
+Contoh docs SumoPod memanggil `POST https://ai.sumopod.com/v1/chat/completions` dengan header `Authorization: Bearer sk-...` dan body JSON `model` + `messages`. Di Recursive Agent, set:
+
+```env
+OPENAI_COMPAT_BASE_URL=https://ai.sumopod.com/v1
+OPENAI_COMPAT_API_KEY=sk-...
+# atau biarkan kosong dan isi saja DEEPSEEK_API_KEY dengan token SumoPod yang sama
+OPENAI_COMPAT_MODEL=gpt-4o-mini
+```
+
+Jika ini ter-set, **mother** akan (best-effort) memanggil gateway itu sekali per misi dan menambahkan paragraf singkat ke **README** spesialis; kegagalan jaringan tidak memutus misi.
 
 ## Troubleshooting OpenClaw CLI
 

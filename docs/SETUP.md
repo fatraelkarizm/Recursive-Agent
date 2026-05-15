@@ -99,7 +99,7 @@ ZAPIER_MCP_URL="https://..."
 TAVILY_API_KEY="tvly-..."
 
 # Persistence (backend)
-DATABASE_URL="postgresql://recursive@localhost:5432/recursive_agent?schema=public"
+DATABASE_URL="postgresql://recursive:postgres@localhost:5432/recursive_agent?schema=public"
 REDIS_URL="redis://..."
 
 # Optional observability
@@ -125,7 +125,7 @@ docker run --name recursive-agent-postgres \
 Set `backend/.env`:
 
 ```env
-DATABASE_URL="postgresql://recursive@localhost:5432/recursive_agent?schema=public"
+DATABASE_URL="postgresql://recursive:postgres@localhost:5432/recursive_agent?schema=public"
 ```
 
 If you already created the `recursive_agent` database in pgAdmin, also create the matching login role or change `DATABASE_URL` to an existing PostgreSQL user.
@@ -136,7 +136,9 @@ Run this in pgAdmin Query Tool while connected as a superuser such as `postgres`
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'recursive') THEN
-    CREATE ROLE recursive WITH LOGIN;
+    CREATE ROLE recursive WITH LOGIN PASSWORD 'postgres';
+  ELSE
+    ALTER ROLE recursive WITH LOGIN PASSWORD 'postgres';
   END IF;
 END
 $$;
@@ -146,7 +148,7 @@ GRANT ALL PRIVILEGES ON DATABASE recursive_agent TO recursive;
 GRANT USAGE, CREATE ON SCHEMA public TO recursive;
 ```
 
-This assumes your local PostgreSQL accepts local connections for role `recursive` without a password. If your install requires passwords, either add a password to the role or use your existing PostgreSQL user in `DATABASE_URL`.
+This matches the default local `DATABASE_URL` above. If you use a different password, update both the SQL and `backend/.env` to the same value.
 
 If you prefer using your existing `postgres` account instead, set:
 

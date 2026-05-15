@@ -23,12 +23,13 @@ The product is not a generic chat app. It is a control room for AI work. The use
 The screen should be organized around four simultaneous layers of attention. The **implemented** dashboard maps them onto a workflow-builder style surface (trigger → agent → branch → actions) inspired by visual automation tools.
 
 ### 1. Mission Canvas
-This is the central graph or orbit view. It shows missions, sub-agents, tool nodes, and their relationships. The canvas should communicate:
+This is the central graph or orbit view. It shows missions, generated agents, sub-agents, tool nodes, and their relationships. The canvas should communicate:
 - current mission
 - active agents
 - completed steps
 - blocked steps
 - tool dependencies
+- which SKILL.md/playbook package was generated for each agent
 
 In code today (`frontend/src/components/mission-canvas.tsx`), the canvas is a live `@xyflow/react` board with a trigger node, a Central Agent hub (model / memory / tools affordances), a policy branch, and two downstream action nodes (tool-heavy vs sandbox). Edge labels document the intent of each branch.
 
@@ -56,7 +57,7 @@ The current terminal card (`frontend/src/components/terminal-drawer.tsx`) mirror
 ### Desktop (implemented)
 - **Left rail (`workspace-rail.tsx`)** — API & integrations strip only. Recipes were removed so the user starts from one explicit mission, while integration status remains visible without hiding HTTP/MCP context in a modal.
 - **Center stage** — Mission canvas graph with zoom/pan (`@xyflow/react`), plus a two-column row directly underneath for **Vitals** and **Terminal/Audit**.
-- **Right column** — **Control chat** for steering the Central Agent, launching missions, and reading structured responses; the generated specialist profile sits directly under the composer so configuration stays adjacent to conversation.
+- **Right column** — **Control chat** for steering the Central Agent and launching missions. Generated agent packages live in the canvas/dashboard, with SKILL.md and README treated as primary artifacts.
 
 ### Desktop (future-friendly)
 - Allow collapsing the rails on smaller laptop widths while keeping the canvas readable.
@@ -105,6 +106,12 @@ Motion should inform state changes, not distract.
 - The latest authoritative state should always be visible without scrolling through raw logs.
 
 Today the stream is implemented as the **control chat** (`control-chat-panel.tsx`): append-only user/assistant turns, with assistant payloads summarizing mission metadata and worker `events[]`.
+
+### Agent Package
+- SKILL.md is the primary generated artifact.
+- README.md explains the agent for humans.
+- Sample deliverables such as HTML previews are optional proof that the generated agent can act.
+- Reviews should judge whether the agent is focused, reusable, tool-aware, and safe to run.
 
 ### Vitals Panel
 - Show numeric state at a glance.

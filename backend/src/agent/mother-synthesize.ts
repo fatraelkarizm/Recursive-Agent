@@ -131,32 +131,35 @@ function toProfile(s: z.infer<typeof specialistLiteSchema>, missionPrompt: strin
 }
 
 const SYSTEM_PROMPT = [
-  "You are the Central Agent of Recursive Agent — a mission control orchestrator.",
-  "Design a small squad of specialist agents for ONE user mission. Think from first principles; do NOT use fixed templates.",
+  "You are the Central Agent of Recursive Agent — a mission control orchestrator that PRODUCES intelligent agents.",
+  "Your PRIMARY goal is to produce specialist agents with deep, real skills extracted from the web. Each agent you create must be smarter than a generic LLM.",
+  "Design a squad of specialist agents for ONE user mission. Think from first principles; do NOT use fixed templates.",
   "Return ONLY one valid JSON object. No markdown outside JSON. No code fences inside string values.",
   "Schema:",
   "{",
-  '  "motherBrief": "2-4 sentences in Indonesian: reasoning, decomposition, risks",',
+  '  "motherBrief": "2-4 sentences in Indonesian: reasoning, what agents will be produced, what knowledge they need",',
   '  "specialists": [{',
   '    "name": "kebab-case-id",',
   '    "role": "short-role-id",',
-  '    "purpose": "one sentence",',
-  '    "systemInstructions": "actionable system prompt",',
+  '    "purpose": "one sentence about what this agent specializes in",',
+  '    "systemInstructions": "actionable system prompt — include domain-specific knowledge this agent needs",',
   '    "canvasLane": "frontend|backend|general",',
-  '    "specializations": ["core-mission"],',
-  '    "orchestrationMode": "local|openclaw",',
-  '    "allowedTools": ["tavily-search"],',
-  '    "subAgents": [{ "role": "scout", "focus": "..." }],',
-  '    "skills": [{ "id": "x", "label": "y", "description": "z", "kind": "generate" }],',
-  '    "readmeOutline": "bullet outline only — deliverable HTML will be generated in a later step"',
+  '    "specializations": ["core-mission", "real-time-knowledge"],',
+  '    "orchestrationMode": "openclaw",',
+  '    "allowedTools": ["tavily-search", "tavily-extract"],',
+  '    "subAgents": [{ "role": "scout|worker|reviewer", "focus": "specific knowledge domain" }],',
+  '    "skills": [{ "id": "x", "label": "y", "description": "z", "kind": "touch|generate|orchestrate|other" }],',
+  '    "readmeOutline": "bullet outline — what knowledge domains this agent covers"',
   "  }]",
   "}",
   "Rules:",
+  "- FOCUS on PRODUCING AGENTS, not coding. Each agent is a knowledge worker with real-time skills from the web.",
   "- Do NOT put readmeMd or ```html in JSON — it breaks parsing.",
-  "- Landing page / crypto / HTML / UI → ALWAYS 2 specialists: canvasLane frontend + canvasLane backend, each with skills[] and readmeOutline.",
-  "- orchestrationMode MUST be \"openclaw\" for all specialists. Lead (frontend) MUST include subAgents: scout, worker, reviewer.",
-  "- Never use role general-specialist-agent for web/UI missions.",
-  "- Never default to article/CMS unless user asked for CMS.",
+  "- Every specialist MUST have subAgents with scout (research/extract knowledge), worker (apply knowledge), reviewer (validate quality).",
+  "- orchestrationMode MUST be openclaw for all specialists.",
+  "- Give each agent tavily-search AND tavily-extract so they can access external knowledge.",
+  "- skills[] should describe the agent's real capabilities — what it can research, extract, build, validate.",
+  "- The contextNotes contain real-time web research and skill catalogs — use them to design agents with REAL knowledge.",
   "- Match user language (Indonesian if user writes Indonesian)."
 ].join("\n");
 
@@ -221,7 +224,7 @@ export async function synthesizeSquadFromMother(payload: MissionPayload): Promis
   return {
     squad,
     motherBrief:
-      "_Central Agent tidak bisa mem-parse rencana LLM; squad sementara dari fallback aturan. HTML akan tetap dicoba lewat langkah deliverable terpisah._",
+      "_Central Agent tidak bisa mem-parse rencana LLM; squad sementara dari fallback aturan. SKILL.md dan README tetap jadi artifact utama; sample deliverable hanya opsional._",
     source: "fallback-rules",
     parseError: lastError.slice(0, 200)
   };

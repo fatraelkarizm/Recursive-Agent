@@ -26,7 +26,7 @@ const TABS: { id: TabId; label: string }[] = [
   { id: "keys", label: "API & tools" },
   { id: "skill", label: "SKILL.md" },
   { id: "readme", label: "README.md" },
-  { id: "preview", label: "Live preview" },
+  { id: "preview", label: "Sample output" },
   { id: "result", label: "Hasil" }
 ];
 
@@ -137,11 +137,10 @@ export function AgentDashboardModal({
             const own = activeSpecialist?.readmeMd ?? "";
             return own && extractFirstHtmlFence(own) ? own : findReadmeWithHtmlFence(specialists);
           })();
-    const html = extractFirstHtmlFence(readmeForDefault);
-    const next: TabId = html ? "preview" : readmeForDefault.trim().length > 0 ? "readme" : "overview";
+    const next: TabId = skillMd.trim().length > 0 ? "skill" : readmeForDefault.trim().length > 0 ? "readme" : "overview";
     const id = requestAnimationFrame(() => setTab(next));
     return () => cancelAnimationFrame(id);
-  }, [open, target, specialists, activeSpecialist, activeMissionId]);
+  }, [open, target, specialists, activeSpecialist, activeMissionId, skillMd]);
 
   useEffect(() => {
     if (!open || tab !== "config") return;
@@ -532,7 +531,7 @@ export function AgentDashboardModal({
             <div className="space-y-4">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                 <p className="max-w-3xl text-sm text-slate">
-                  Pratinjau dari blok <code className="text-electric">{"```html"}</code> di README. Iframe pakai{" "}
+                  Sample deliverable dari blok <code className="text-electric">{"```html"}</code> di README. Ini bukan artifact utama; artifact utama agent ada di tab <span className="text-electric">SKILL.md</span>. Iframe pakai{" "}
                   <code className="text-electric">sandbox=&quot;&quot;</code> (script tidak jalan). Buka tab baru untuk
                   halaman penuh — itu URL <code className="text-electric">blob:</code> lokal (bisa menjalankan script;
                   hanya untuk konten kamu sendiri).
@@ -572,7 +571,7 @@ export function AgentDashboardModal({
                           className="inline-flex items-center gap-2 rounded-lg border border-electric/40 bg-electric/15 px-3 py-2 text-sm font-medium text-electric hover:bg-electric/25"
                         >
                           <ExternalLink className="h-4 w-4 shrink-0" aria-hidden />
-                          Buka preview HTML di tab baru
+                          Buka sample HTML di tab baru
                         </a>
                         <button
                           type="button"
@@ -598,7 +597,7 @@ export function AgentDashboardModal({
                 <p className="rounded-lg border border-white/10 bg-black/30 p-4 text-sm text-slate">
                   Tidak ada fence <code className="text-electric">{"```html ... ```"}</code> di README. Kalau hanya
                   punya link situs, pakai daftar <strong className="text-white">Link di README</strong> di atas (bila
-                  URL terdeteksi). Minta Central Agent menaruh HTML di fence atau URL lengkap di README.
+                  URL terdeteksi). Jika butuh demo aksi, minta Central Agent menaruh sample HTML di fence atau URL lengkap di README.
                 </p>
               )}
             </div>
@@ -625,11 +624,11 @@ export function AgentDashboardModal({
                 </p>
               )}
               <p className="text-[10px] text-slate">
-                README & HTML: tab <span className="text-electric">README.md</span>
+                Agent package: tab <span className="text-electric">SKILL.md</span> dan <span className="text-electric">README.md</span>
                 {previewHtml ? (
                   <>
                     {" "}
-                    · <span className="text-electric">Live preview</span>
+                    · <span className="text-electric">Sample output</span>
                   </>
                 ) : null}
                 .
@@ -641,7 +640,7 @@ export function AgentDashboardModal({
             <div className="space-y-3">
               {previewHtml ? (
                 <p className="rounded-lg border border-electric/25 bg-electric/10 px-3 py-2 text-[11px] text-electric">
-                  HTML ada di README lead — buka tab <strong>Live preview</strong>.
+                  Sample output ada di README lead — buka tab <strong>Sample output</strong>.
                 </p>
               ) : (
                 <p className="text-[10px] text-slate">

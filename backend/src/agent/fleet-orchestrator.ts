@@ -59,28 +59,28 @@ function buildSubUserPayload(params: {
   openClawContext?: string;
 }): string {
   return [
-    "## OpenClaw mission pack (SKILL.md, URLs, Tavily research — source of truth)",
+    "OpenClaw mission pack (SKILL, URLs, Tavily research)",
     params.openClawContext?.trim() || params.motherPrompt.trim(),
     "",
-    "## Lead specialist",
-    `- Name: ${params.profile.name}`,
-    `- Role: ${params.profile.role}`,
-    `- Purpose: ${params.profile.purpose}`,
+    "Lead specialist",
+    `Name ${params.profile.name}`,
+    `Role ${params.profile.role}`,
+    `Purpose ${params.profile.purpose}`,
     params.profile.skillMd?.trim()
       ? ["", "Lead SKILL", params.profile.skillMd.trim().slice(0, 3500), ""].join("\n")
       : "",
     params.sub.skillMd?.trim()
       ? ["", "Sub-agent SKILL (role-specific)", params.sub.skillMd.trim().slice(0, 3500), ""].join("\n")
       : "",
-    "## Your sub-agent assignment",
-    `- id: \`${params.sub.id}\``,
-    `- role: \`${params.sub.role}\``,
-    `- focus: ${params.sub.focus}`,
+    "Your sub-agent assignment",
+    `id ${params.sub.id}`,
+    `role ${params.sub.role}`,
+    `focus ${params.sub.focus}`,
     "",
-    "## Outputs from earlier sub-agents in this fleet (read-only; build on them)",
-    params.priorOutputs.trim() || "_None yet — you are first in the chain._",
+    "Outputs from earlier sub-agents (read-only)",
+    params.priorOutputs.trim() || "None yet, you are first in the chain.",
     "",
-    "Produce **only** your slice of the work. Markdown. For UI/HTML missions, worker/reviewer may include a ```html fence with full standalone page.",
+    "Produce only your slice. Prioritize the agent package: skills, workflow, tool constraints, risks, and reusable playbook details. For UI/HTML missions, sample HTML is optional proof of work, not the core artifact.",
     "Do not claim you ran tools unless context says so."
   ].join("\n");
 }
@@ -94,7 +94,9 @@ async function runSubViaOpenAiCompat(params: {
 }): Promise<string | null> {
   if (!isOpenAiCompatConfigured()) return null;
   const system = [
-    "You are one leg of a multi-agent fleet coordinated by a Central Agent.",
+    "You are a specialized sub-agent in a multi-agent fleet coordinated by a Central Agent.",
+    "You have been produced with real-time skills extracted from the web — SKILL.md files, documentation, best practices, and domain knowledge.",
+    "Use ALL the knowledge in your SKILL injection to produce high-quality, expert-level output.",
     "Stay inside your sub-agent role and focus. Be factual; do not claim you executed shell commands or external tools unless context says so.",
     "Reply in Markdown. Indonesian if the user mission is Indonesian."
   ].join(" ");
@@ -201,7 +203,7 @@ async function synthesizeMergeIfPossible(
         {
           role: "system",
           content:
-            "You are the Central Agent synthesizing a fleet. Merge sub-agent outputs into one executive report: goals, decisions, risks, open questions, and ordered next steps. Markdown. Match user language (e.g. Indonesian if mission is Indonesian). Do not invent tool executions."
+            "You are the Central Agent synthesizing a fleet of knowledge-enriched agents. Merge sub-agent outputs into one executive report: what knowledge was applied, what each agent contributed, quality assessment, risks, and ordered next steps. Highlight the real-time skills and web knowledge that made these agents smarter. Markdown. Match user language (e.g. Indonesian if mission is Indonesian). Do not invent tool executions."
         },
         {
           role: "user",

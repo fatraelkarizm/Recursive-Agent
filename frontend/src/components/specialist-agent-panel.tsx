@@ -93,7 +93,7 @@ export function SpecialistAgentPanel({ profile, variant = "card" }: SpecialistAg
 
         {profile.readmeMd && variant === "embedded" ? (
           <p className="border-t border-white/10 pt-2 text-[10px] leading-relaxed text-slate">
-            README.md (HTML/CSS & artefak) ada di{" "}
+            SKILL.md, README.md, dan sample artifact ada di{" "}
             <span className="font-medium text-electric">Dashboard</span> → tab{" "}
             <span className="font-medium text-electric">README.md</span>, atau klik node di canvas.
           </p>

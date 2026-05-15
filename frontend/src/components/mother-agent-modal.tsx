@@ -416,7 +416,7 @@ export function MotherAgentModal({
                   value={local.motherReviewNotes}
                   onChange={(e) => setLocal((s) => ({ ...s, motherReviewNotes: e.target.value }))}
                   className="mt-1 w-full resize-y rounded-xl border border-violet-500/25 bg-violet-500/5 px-3 py-2 text-sm text-white focus:border-violet-400/50"
-                  placeholder="Contoh: perketat README HTML, tambahkan error handling, fokus ke endpoint /articles…"
+                  placeholder="Contoh: perketat SKILL.md, sempitkan scope agent, tambahkan tool constraints, fokus ke endpoint /articles..."
                 />
                 <p className="mt-1 text-[10px] text-slate">
                   Teks ini disematkan di akhir payload misi sebagai blok &quot;Review / uji dari user&quot; setiap kali kamu
@@ -446,7 +446,7 @@ export function MotherAgentModal({
                   </pre>
                   <p className="text-[10px] text-slate">
                     Lead: <span className="text-white">{lead?.name ?? "—"}</span> — buka dashboard specialist untuk
-                    README / preview HTML penuh.
+                    SKILL.md / README / sample output penuh.
                   </p>
                 </>
               ) : (

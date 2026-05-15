@@ -5,7 +5,7 @@ OpenClaw Agenthon 2026 project docs for **Recursive Agent**, a multi-agent produ
 ## Overview
 The problem this project solves is simple: most AI agents are too static, too generic, and are usually built only by developers for developers. People can chat with them, but they cannot easily shape the agent into something purpose-built for their own workflow.
 
-Recursive Agent changes that. A user can describe what they want in plain chat, and the Central Agent turns that request into a specialist agent with a clear role, clear instructions, and configurable settings. The result is not a one-size-fits-all agent. It is a custom agent built for one job, such as coding, scraping, research, recommendations, workflow automation, or other specialized tasks.
+Recursive Agent changes that. A user can describe what they want in plain chat, and the Central Agent compiles that request into a reusable specialist-agent package: role, scope, tools, SKILL.md playbook, README, sub-agent fleet, and review notes. The result is not a one-size-fits-all agent or a one-off HTML generator. It is a custom agent built for one job, such as coding, scraping, research, recommendations, workflow automation, or other specialized tasks.
 
 The product is designed to feel like a mission control dashboard rather than a hidden chat bot. It makes the agent structure visible, editable, and easy to understand.
 
@@ -18,18 +18,19 @@ This repository is a **working monorepo slice**:
 ## Product Story
 The user experience should feel like this:
 1. The user chats with the Central Agent.
-2. The Central Agent asks for the goal and converts it into a specialist agent.
-3. The system generates the agent profile, instructions, and tool access.
+2. The Central Agent asks for the goal and converts it into a reusable specialist-agent package.
+3. The system generates the agent profile, SKILL.md playbook, README, instructions, and tool access.
 4. A configuration panel appears so the user can edit the agent manually if needed.
 5. The user can inspect what the agent does, what it knows, and what tools it can use.
 6. The agent then works on the task with a focused scope instead of trying to do everything.
 
 ## What The Product Does
-- Turns a plain chat request into a specialist agent.
+- Turns a plain chat request into a reusable specialist-agent package.
 - Lets the user create agents for coding, scraping, research, recommendations, automation, and similar workflows.
 - Keeps each agent focused on its specialty instead of forcing one general-purpose bot to do everything.
-- Shows the generated agent definition in a visible configuration panel.
+- Shows the generated agent definition, SKILL.md, README, tools, and review state in a visible dashboard.
 - Lets the user manually adjust the agent instructions, settings, and API key references.
+- Treats content/code output as a sample deliverable, not the core product; the core artifact is the agent itself.
 - Uses external tools for research, execution, and integration work.
 - Shows a live operational dashboard with mission state, logs, runtime health, and budget awareness.
 - **Automatic orchestration** (default): every mission **schedules** the scout/worker/reviewer fleet and builds a merged Central Agent report in the mission graph. **Sub-agent turns only produce real LLM output** when an OpenAI-compatible gateway (`OPENAI_COMPAT_BASE_URL` + bearer) or a working **OpenClaw** fallback is available; otherwise events show `source=skipped` with a placeholder — the mission still completes (graceful degradation). Set `AUTO_ORCHESTRATION=0` in `backend/.env` to orchestrate only when the user asks for fleet/multi-agent explicitly.
@@ -47,7 +48,7 @@ The dashboard follows a **visual workflow builder** metaphor (similar to n8n-sty
 - **Left rail** — API & integrations strip (Central Agent worker route, OpenClaw, Tavily, runtime config, env files). Recipes were removed so the product stays focused on one user-written mission instead of canned prompts.
 - **Center canvas** — `@xyflow/react` graph: trigger → Central Agent (model / memory / tools) → policy branch → tool-heavy vs sandbox paths. Status rings reflect the latest mission state.
 - **Right column** — **Control chat**: send a mission, read assistant handoffs, and inspect the generated specialist profile under the thread.
-- **Agent dashboard** — Per specialist/sub-agent: tabs include **Config** (worker model/env snapshot via `GET /api/runtime-config` — no secret values), README, live HTML preview, and results.
+- **Agent dashboard** — Per specialist/sub-agent: tabs include **Config** (worker model/env snapshot via `GET /api/runtime-config` — no secret values), SKILL.md, README, optional sample preview, and results.
 - **Below the canvas** — Vitals plus a compact terminal/audit readout fed by the latest assistant message.
 
 ## Suggested Tech Stack
@@ -79,6 +80,8 @@ Each generated agent should have a clear profile with:
 - input and output expectations
 - config fields
 - API key references if needed
+- SKILL.md playbook with when to use it, workflow, constraints, tools, and expected outputs
+- README.md for human-facing usage and handoff notes
 
 The user should be able to see and edit that profile before the agent is finalized.
 

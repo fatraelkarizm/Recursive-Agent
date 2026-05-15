@@ -1,7 +1,7 @@
 import type { MissionPayload, SpecialistAgentProfile } from "../types";
 import { stripMarkdownToPlainText } from "../util/plain-text";
 
-/** Context pack injected into every OpenClaw sub-agent turn (skills + URLs + research). Plain text only. */
+/** Context pack injected into every OpenClaw sub-agent turn (skills + URLs + research + knowledge). Plain text only. */
 export function buildOpenClawMissionContext(params: {
   payload: MissionPayload;
   effectivePrompt: string;
@@ -9,6 +9,7 @@ export function buildOpenClawMissionContext(params: {
   fleetLead: SpecialistAgentProfile;
   squad: SpecialistAgentProfile[];
   fleetMergedReport?: string;
+  knowledgeDigest?: string;
 }): string {
   const urls = (params.payload.referenceUrls ?? [])
     .map((u) => u.trim())
@@ -56,6 +57,10 @@ export function buildOpenClawMissionContext(params: {
 
   if (params.payload.contextNotes?.trim()) {
     parts.push("", "Extra context dari Central Agent bundle", params.payload.contextNotes.trim().slice(0, 4000));
+  }
+
+  if (params.knowledgeDigest?.trim()) {
+    parts.push("", "Real-time knowledge digest (SKILL.md, docs, best practices dari web)", params.knowledgeDigest.trim().slice(0, 5000));
   }
 
   if (params.fleetMergedReport?.trim()) {

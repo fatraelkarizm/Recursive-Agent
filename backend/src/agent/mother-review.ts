@@ -71,7 +71,7 @@ export async function runMotherQualityReview(params: {
             "Return ONLY JSON:",
             '{ "reviewMarkdown": "Indonesian markdown summary for the user",',
             '  "verdicts": [{ "agentName": "exact name", "verdict": "pass|rework", "instructions": "if rework, precise fix list" }] }',
-            "Use rework when deliverable misses the mission (wrong topic, no HTML when landing requested, generic CMS template, etc.)."
+            "Use rework when the generated agent package is too generic, missing actionable SKILL.md guidance, has unsafe/irrelevant tools, or cannot be reused. Sample deliverables are secondary proof of work."
           ].join(" ")
         },
         {

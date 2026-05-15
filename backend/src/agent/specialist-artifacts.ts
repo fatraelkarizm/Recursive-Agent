@@ -99,7 +99,7 @@ export function buildSpecialistSkillMd(profile: SpecialistAgentProfile, missionP
     "Misi user",
     missionPrompt.trim().slice(0, 1200) || "(kosong)",
     "",
-    "Skills",
+    `Skills (${profile.skills.length} total, real-time dari web + Central Agent)`,
     skillsPlainBlock(profile.skills),
     "",
     "Tools",
@@ -113,7 +113,10 @@ export function buildSpecialistSkillMd(profile: SpecialistAgentProfile, missionP
     "",
     "Output",
     `Format ${profile.outputFormat}`,
-    profile.canvasLane ? `Lane ${profile.canvasLane}` : ""
+    profile.canvasLane ? `Lane ${profile.canvasLane}` : "",
+    "",
+    "Agent ini di-produce oleh Central Agent Recursive Agent.",
+    "Semua skill di atas di-extract real-time dari web (GitHub SKILL.md, docs, npm, awesome-lists) dan di-inject oleh Central Agent."
   ].join("\n");
 
   return stripMarkdownToPlainText(raw);

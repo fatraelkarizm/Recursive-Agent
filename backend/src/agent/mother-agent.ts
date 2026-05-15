@@ -51,10 +51,16 @@ export async function runMission(
 
   emit({
     phase: "tools",
-    label: "Central Agent cari SKILL.md (Tavily)",
-    detail: "Riset skill agent di web untuk inject ke sub-agent"
+    label: "Central Agent ekstrak SKILL.md dari web + GitHub",
+    detail: "Real-time skill extraction: GitHub repos, docs, npm, awesome-lists"
   });
   const skillDiscovery = await discoverSkillsForMission(effectivePrompt);
+
+  emit({
+    phase: "tools",
+    label: `Ditemukan ${skillDiscovery.catalog.length} skills dari ${skillDiscovery.extractedDocs.length} sumber`,
+    detail: `Topics: ${skillDiscovery.extractedDocs.slice(0, 3).map((d) => d.source).join(", ")}`
+  });
 
   const synthPayload: MissionPayload = {
     ...payload,
@@ -64,8 +70,11 @@ export async function runMission(
       "Riset web Tavily otomatis sebelum spawn",
       webResearch,
       "",
-      "Katalog skill dari Tavily",
-      skillDiscovery.researchNotes.slice(0, 4000)
+      `Katalog ${skillDiscovery.catalog.length} skills (real-time dari web)`,
+      skillDiscovery.researchNotes.slice(0, 4000),
+      "",
+      "Knowledge digest (extracted docs, SKILL.md, best practices)",
+      skillDiscovery.knowledgeDigest.slice(0, 6000)
     ]
       .filter(Boolean)
       .join("\n\n")
@@ -91,7 +100,8 @@ export async function runMission(
   fleetLead.subAgents = enrichSubAgentsWithDiscoveredSkills(
     fleetLead.subAgents ?? [],
     skillDiscovery.catalog,
-    synthPrompt
+    synthPrompt,
+    skillDiscovery.knowledgeDigest
   );
   for (const member of squad) {
     refreshPlainArtifacts(member, synthPrompt);
@@ -122,7 +132,8 @@ export async function runMission(
     effectivePrompt: synthPrompt,
     webResearch,
     fleetLead,
-    squad
+    squad,
+    knowledgeDigest: skillDiscovery.knowledgeDigest
   });
 
   for (const member of squad) {
@@ -210,28 +221,35 @@ export async function runMission(
   const motherReview = quality.reviewMarkdown;
   events.push(`Central review: ${motherReview.slice(0, 240)}${motherReview.length > 240 ? "…" : ""}`);
 
+  emit({
+    phase: "specialist-readme",
+    label: "Central Agent finalisasi agent profiles",
+    detail: `Meng-enrich ${squad.length} specialist dengan ${skillDiscovery.catalog.length} skills`
+  });
+  for (const member of squad) {
+    enrichSquadWithDiscoveredSkills([member], skillDiscovery.catalog);
+    if (member.subAgents?.length) {
+      member.subAgents = enrichSubAgentsWithDiscoveredSkills(
+        member.subAgents,
+        skillDiscovery.catalog,
+        synthPrompt,
+        skillDiscovery.knowledgeDigest
+      );
+    }
+    refreshPlainArtifacts(member, synthPrompt);
+  }
+  events.push(`Agent production: ${squad.length} specialist, total ${skillDiscovery.catalog.length} skills injected dari ${skillDiscovery.extractedDocs.length} sumber web.`);
+
   if (missionWantsHtmlDeliverable(synthPrompt)) {
-    emit({
-      phase: "specialist-readme",
-      label: "HTML deliverable (setelah OpenClaw fleet)",
-      detail: fleetLead.name
-    });
     const fleetHint = fleetSummary?.mergedReport?.slice(0, 6000) ?? "";
     const fe = squad.find((s) => s.canvasLane === "frontend") ?? fleetLead;
-    const needsHtml =
-      !readmeHasHtmlFence(fe.readmeMd) || readmeHasFallbackHtml(fe.readmeMd);
-    const added = await ensureSquadHtmlDeliverables(squad, synthPrompt, {
-      webResearch: `${webResearch}\n\nOpenClaw fleet report\n${fleetHint}`,
-      force: needsHtml
-    });
-    for (const member of squad) {
-      refreshPlainArtifacts(member, synthPrompt);
-    }
-    if (added > 0) {
-      htmlDeliverableNote = `HTML realtime untuk ${added} specialist (post-OpenClaw).`;
-    } else {
-      htmlDeliverableNote =
-        "HTML belum terbuat — cek gateway SumoPod / OpenClaw worker output di tab Hasil.";
+    const needsHtml = !readmeHasHtmlFence(fe.readmeMd) || readmeHasFallbackHtml(fe.readmeMd);
+    if (needsHtml) {
+      const added = await ensureSquadHtmlDeliverables(squad, synthPrompt, {
+        webResearch: `${webResearch}\n\nOpenClaw fleet report\n${fleetHint}`,
+        force: true
+      });
+      if (added > 0) htmlDeliverableNote = `HTML untuk ${added} specialist.`;
     }
   }
 
@@ -239,17 +257,14 @@ export async function runMission(
   if (reworkTargets.length > 0) {
     emit({
       phase: "mother-review",
-      label: "Central Agent menyuruh rework",
+      label: "Central Agent rework agent",
       detail: reworkTargets.map((r) => r.agentName).join(", ")
     });
     for (const v of reworkTargets) {
       const agent = squad.find((s) => s.name === v.agentName) ?? fleetLead;
-      const ok = await ensureLeadHtmlDeliverable(agent, synthPrompt, {
-        revisionNotes: v.instructions ?? "Perbaiki deliverable agar sesuai misi user.",
-        force: true,
-        webResearch
-      });
-      if (ok) events.push(`Central Agent: rework selesai untuk ${agent.name}`);
+      enrichSquadWithDiscoveredSkills([agent], skillDiscovery.catalog);
+      refreshPlainArtifacts(agent, synthPrompt);
+      events.push(`Central Agent: re-enriched skills untuk ${agent.name}`);
     }
   }
 

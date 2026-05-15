@@ -170,10 +170,16 @@ function motherLlmTimeoutMs(): number {
 }
 
 async function callMotherPlan(effectivePrompt: string, temperature: number): Promise<string> {
+  const userContent = [
+    effectivePrompt.slice(0, 8000),
+    "",
+    "REMINDER: Return ONLY valid JSON. No markdown, no explanation. Just the JSON object with motherBrief and specialists array."
+  ].join("\n");
+
   return openAiCompatibleChatCompletion({
     messages: [
       { role: "system", content: SYSTEM_PROMPT },
-      { role: "user", content: effectivePrompt.slice(0, 12000) }
+      { role: "user", content: userContent }
     ],
     maxTokens: 4096,
     temperature,
@@ -255,9 +261,11 @@ async function trySmartFallback(prompt: string): Promise<SpecialistAgentProfile[
       return profile;
     });
 
+    logger.info({ count: squad.length, roles: squad.map((s) => s.role) }, "Smart fallback: generated squad");
     return squad.length > 0 ? squad : null;
   } catch (err) {
-    logger.warn({ err }, "Smart fallback squad generation failed");
+    const detail = err instanceof Error ? err.message : String(err);
+    logger.warn({ err: detail }, "Smart fallback squad generation failed");
     return null;
   }
 }
@@ -302,7 +310,9 @@ export async function synthesizeSquadFromMother(payload: MissionPayload): Promis
     }
   }
 
-  const smartFallback = await trySmartFallback(effectivePrompt);
+  const missionOnly = payload.prompt?.trim() || effectivePrompt.slice(0, 1000);
+  logger.info({ lastError: lastError.slice(0, 100) }, "Primary synthesis failed, trying smart fallback with mission-only prompt");
+  const smartFallback = await trySmartFallback(missionOnly);
   if (smartFallback) {
     return {
       squad: smartFallback,

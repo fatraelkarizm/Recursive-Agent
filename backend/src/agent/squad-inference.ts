@@ -8,42 +8,30 @@ function randomId(length = 8): string {
 
 function inferRole(prompt: string): string {
   const lower = prompt.toLowerCase();
-  if (/(security|audit|owasp|vulnerability|pentest|threat)/i.test(lower)) return "security-audit-agent";
-  if (/(incident|response|runbook|playbook)/i.test(lower)) return "incident-response-agent";
-  if (lower.includes("scrap") || lower.includes("crawl")) return "research-scraper-agent";
-  if (lower.includes("code") || lower.includes("bug") || lower.includes("refactor")) return "coding-agent";
-  if (lower.includes("recommend") || lower.includes("suggest")) return "recommendation-agent";
-  if (lower.includes("browser") || lower.includes("playwright") || lower.includes("website")) {
-    return "browser-operator-agent";
-  }
-  if (lower.includes("openclaw") || lower.includes("orchestr")) return "openclaw-fleet-agent";
-  return "general-specialist-agent";
+
+  const keywords = lower
+    .replace(/[^a-z0-9\s-]/g, " ")
+    .split(/\s+/)
+    .filter((w) => w.length > 3)
+    .filter((w) => !["want", "need", "make", "give", "with", "that", "this", "from", "have", "will", "should", "could", "would", "about", "buat", "bikin", "yang", "dengan", "untuk", "dari", "harus", "bisa"].includes(w));
+
+  const topKeywords = keywords.slice(0, 3).join("-");
+
+  if (topKeywords.length > 5) return `${topKeywords}-agent`;
+  return "mission-specialist-agent";
 }
 
-function isWebStackPrompt(p: string): boolean {
-  return /(web|website|webapp|web\s*app|\bui\b|\bux\b|landing|saas|cms|blog|article|e-?commerce|marketplace|dashboard|portal|next\.?js|nextjs|react|vue|svelte|html|css|frontend|back\s*end|full\s*stack|fullstack|rest|graphql|database|postgres|mysql|prisma|supabase)/i.test(
-    p
-  );
-}
-
-/** Natural language: product-style web work → split frontend + backend specialists. */
+/**
+ * Only true when the user explicitly wants to BUILD a web application.
+ * Analysis, validation, audit, strategy prompts should NOT trigger this.
+ */
 function wantsFrontendBackendSquad(p: string): boolean {
   const x = p.toLowerCase();
-  if (!isWebStackPrompt(x)) return false;
-  if (/(landing|landing\s*page|halaman|homepage|one-?page|crypto|saas|ui|html|css)/i.test(x)) {
-    return true;
-  }
-  if (
-    /(cms|content\s*management|artikel|article|blog|editorial|e-?commerce|marketplace|platform|dashboard|admin|portal|full\s*stack|fullstack|lipat|depan\s*dan\s*belakang|frontend\s*(dan|&|\+)\s*backend|backend\s*(dan|&|\+)\s*frontend|ui\s*(dan|&|\+)\s*api|api\s*(dan|&|\+)\s*database|buat\s+web|bikin\s+web|bangun\s+web|situs|aplikasi\s+web)/i.test(
-      x
-    )
-  ) {
-    return true;
-  }
-  if (/(buat|bikin|bangun).{0,60}(web|website|aplikasi|situs|landing|halaman|page|html|ui|crypto)/i.test(x)) {
-    return true;
-  }
-  return false;
+  const isBuildIntent = /(buat|bikin|bangun|build|create|develop|implement|code|koding|coding)/i.test(x);
+  if (!isBuildIntent) return false;
+
+  const hasWebTarget = /(web|website|webapp|web\s*app|landing\s*page|halaman|homepage|next\.?js|nextjs|react|vue|svelte|html|css|frontend.*backend|full\s*stack|fullstack|buat\s+web|bikin\s+web|bangun\s+web|situs|aplikasi\s+web)/i.test(x);
+  return hasWebTarget;
 }
 
 function baseAllowedTools(specializations: string[], wantsOpenClaw: boolean): string[] {

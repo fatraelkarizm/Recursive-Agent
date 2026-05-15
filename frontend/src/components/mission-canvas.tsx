@@ -362,7 +362,8 @@ function FlowSurface({
         };
       });
 
-      return resolveNodeCollisions(withData);
+      const existingIds = new Set(currentNodes.map((n) => n.id));
+      return resolveNodeCollisions(withData, existingIds);
     });
 
     setEdges(() => {

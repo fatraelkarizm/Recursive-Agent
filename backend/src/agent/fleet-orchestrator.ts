@@ -346,6 +346,7 @@ export async function runSubAgentFleet(params: {
 
     runs.push({ id: sub.id, role: sub.role, focus: sub.focus, output, source });
     prior += `\n\n### ${sub.role} (${sub.id})\n${output}`;
+    params.onProgress?.(`Done · ${sub.role} [${source}]`, params.profile.name);
     events.push(`Fleet: done ${sub.role} (${output.length} chars, source=${source})`);
   }
 

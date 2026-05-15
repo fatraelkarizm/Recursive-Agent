@@ -70,8 +70,8 @@ export async function runOpenClawAgentMessage(params: { message: string; session
     args.push("--local");
   }
 
-  const configuredTimeout = Number(process.env.OPENCLAW_TIMEOUT_MS ?? "30000");
-  const timeoutMs = Number.isFinite(configuredTimeout) && configuredTimeout > 1000 ? configuredTimeout : 30000;
+  const configuredTimeout = Number(process.env.OPENCLAW_TIMEOUT_MS ?? "60000");
+  const timeoutMs = Number.isFinite(configuredTimeout) && configuredTimeout > 1000 ? configuredTimeout : 60000;
 
   try {
     const { stdout, stderr } = await execFileAsync(bin, args, {

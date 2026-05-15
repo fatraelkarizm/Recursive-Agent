@@ -50,8 +50,11 @@ function findFreePosition(
   };
 }
 
-/** Push specialist/sub nodes away from static workflow nodes and each other. */
-export function resolveNodeCollisions(nodes: Node[]): Node[] {
+/**
+ * Push specialist/sub nodes away from static workflow nodes and each other.
+ * Nodes that already existed (in `stableIds`) keep their position; only new nodes get resolved.
+ */
+export function resolveNodeCollisions(nodes: Node[], stableIds?: Set<string>): Node[] {
   const placed: Rect[] = [];
   const out = nodes.map((n) => ({ ...n, position: { ...n.position } }));
 
@@ -64,6 +67,12 @@ export function resolveNodeCollisions(nodes: Node[]): Node[] {
   for (const node of out) {
     if (STATIC_IDS.has(node.id)) continue;
     const size = BOUNDS[node.type ?? "default"] ?? BOUNDS.default;
+
+    if (stableIds?.has(node.id)) {
+      placed.push({ x: node.position.x, y: node.position.y, ...size });
+      continue;
+    }
+
     const free = findFreePosition(node.position, placed, size);
     node.position = free;
     placed.push({ x: free.x, y: free.y, ...size });

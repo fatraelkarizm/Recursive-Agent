@@ -85,6 +85,7 @@ export default function Page() {
   const [missionElapsedMs, setMissionElapsedMs] = useState<number | null>(null);
   const [centralSkillMd, setCentralSkillMd] = useState<string | null>(null);
   const [centralReadmeMd, setCentralReadmeMd] = useState<string | null>(null);
+  const [agentActivity, setAgentActivity] = useState<Record<string, MissionProgressEvent | null>>({});
 
   const loadAgents = useCallback(async () => {
     try {
@@ -139,6 +140,7 @@ export default function Page() {
     setStatus("running");
     setProgress([]);
     setProgressCurrent(null);
+    setAgentActivity({});
     setMissionStartedAt(Date.now());
     setMissionElapsedMs(0);
     const promptTrim = prompt.trim();
@@ -154,6 +156,9 @@ export default function Page() {
           onProgress: (event) => {
             setProgressCurrent(event);
             setProgress((prev) => [...prev, event]);
+            if (event.agentName) {
+              setAgentActivity((prev) => ({ ...prev, [event.agentName!]: event }));
+            }
           },
           onDone: (result) => {
             const incoming = result.specialists ?? [result.profile];
@@ -327,6 +332,7 @@ export default function Page() {
               motherProgressCurrent={progressCurrent}
               motherProgressHistory={progress}
               knowledgeStats={knowledgeStats}
+              agentActivity={agentActivity}
             />
           )}
           </div>

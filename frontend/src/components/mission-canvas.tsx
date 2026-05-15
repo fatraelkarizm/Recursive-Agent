@@ -191,6 +191,7 @@ type FlowSurfaceProps = {
   motherProgressCurrent?: MissionProgressEvent | null;
   motherProgressHistory?: MissionProgressEvent[];
   knowledgeStats?: { skillCount: number; docCount: number } | null;
+  agentActivity?: Record<string, MissionProgressEvent | null>;
 };
 
 function FlowSurface({
@@ -202,7 +203,8 @@ function FlowSurface({
   motherThinking,
   motherProgressCurrent,
   motherProgressHistory,
-  knowledgeStats
+  knowledgeStats,
+  agentActivity
 }: FlowSurfaceProps) {
   const savedStaticRef = useRef(loadAllCanvasPositions());
   const initialNodes = useMemo(() => {
@@ -289,7 +291,8 @@ function FlowSurface({
             role: p.role,
             skillsPreview: p.skills?.map((s) => s.label).join(" · ") ?? "",
             lane: p.canvasLane ?? "general",
-            isLatest: activeMissionId != null && p.missionId === activeMissionId
+            isLatest: activeMissionId != null && p.missionId === activeMissionId,
+            activity: agentActivity?.[p.name] ?? null
           }
         };
         });
@@ -461,6 +464,7 @@ type MissionCanvasProps = {
   motherProgressHistory?: MissionProgressEvent[];
   activeMissionId?: string | null;
   knowledgeStats?: { skillCount: number; docCount: number } | null;
+  agentActivity?: Record<string, MissionProgressEvent | null>;
 };
 
 export function MissionCanvas({
@@ -472,7 +476,8 @@ export function MissionCanvas({
   motherThinking,
   motherProgressCurrent,
   motherProgressHistory,
-  knowledgeStats
+  knowledgeStats,
+  agentActivity
 }: MissionCanvasProps) {
   return (
     <section className="flex h-full min-h-[min(56vh,560px)] flex-1 flex-col overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-b from-[#050f1f] via-[#061222] to-[#030914] shadow-inner shadow-black/40">
@@ -503,6 +508,7 @@ export function MissionCanvas({
             motherProgressHistory={motherProgressHistory}
             activeMissionId={activeMissionId}
             knowledgeStats={knowledgeStats}
+            agentActivity={agentActivity}
           />
         </ReactFlowProvider>
       </div>

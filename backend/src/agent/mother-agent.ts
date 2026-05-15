@@ -262,8 +262,8 @@ export async function runMission(
       profile,
       openClawContext,
       maxIterations,
-      onProgress: (subLabel) => {
-        emit({ phase: "fleet-run", label: subLabel });
+      onProgress: (subLabel, agentName) => {
+        emit({ phase: "fleet-run", label: subLabel, agentName });
       }
     });
     events.push(...fleet.events);
@@ -377,8 +377,8 @@ export async function runMission(
           profile: agent,
           openClawContext: reworkContext,
           maxIterations: 2,
-          onProgress: (subLabel) => {
-            emit({ phase: "fleet-run", label: `Rework · ${subLabel}` });
+          onProgress: (subLabel, agName) => {
+            emit({ phase: "fleet-run", label: `Rework · ${subLabel}`, agentName: agName ?? agent.name });
           }
         });
         events.push(...reworkFleet.events);

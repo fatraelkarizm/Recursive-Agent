@@ -15,6 +15,7 @@ export type MissionProgressEvent = {
   label: string;
   detail?: string;
   at: string;
+  agentName?: string;
 };
 
 export type MissionProgressEmitter = (event: MissionProgressEvent) => void;

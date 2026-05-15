@@ -264,7 +264,7 @@ export async function runSubAgentFleet(params: {
   profile: SpecialistAgentProfile;
   /** SKILL.md + URLs + Tavily + mission text for OpenClaw. */
   openClawContext?: string;
-  onProgress?: (label: string) => void;
+  onProgress?: (label: string, agentName?: string) => void;
 }): Promise<{ events: string[]; summary: FleetOrchestrationSummary }> {
   const subs = params.profile.subAgents ?? [];
   const events: string[] = [];
@@ -282,7 +282,7 @@ export async function runSubAgentFleet(params: {
   const gatewayFailures: string[] = [];
 
   for (const sub of subs) {
-    params.onProgress?.(`Sub-agent · ${sub.role}`);
+    params.onProgress?.(`Executing · ${sub.role}`, params.profile.name);
     events.push(`Fleet: start ${sub.role} (\`${sub.id}\`)`);
 
     let output: string | null = null;
@@ -463,7 +463,7 @@ export async function runSubAgentFleetWithReview(params: {
   motherPrompt: string;
   profile: SpecialistAgentProfile;
   openClawContext?: string;
-  onProgress?: (label: string) => void;
+  onProgress?: (label: string, agentName?: string) => void;
   maxIterations?: number;
 }): Promise<{ events: string[]; summary: FleetOrchestrationSummary; iterations: number }> {
   const maxIter = params.maxIterations ?? 3;
@@ -475,7 +475,7 @@ export async function runSubAgentFleetWithReview(params: {
   let currentRuns = lastResult.summary.subAgentRuns;
 
   while (iteration < maxIter) {
-    params.onProgress?.(`Review iterasi ${iteration}/${maxIter}`);
+    params.onProgress?.(`Review iterasi ${iteration}/${maxIter}`, params.profile.name);
     allEvents.push(`Fleet review: iteration ${iteration} — evaluating output quality...`);
 
     const review = await reviewFleetOutput({
@@ -492,13 +492,13 @@ export async function runSubAgentFleetWithReview(params: {
 
     if (review.pass) {
       allEvents.push(`Fleet review: ALL PASS at iteration ${iteration} — industry-standard quality achieved.`);
-      params.onProgress?.(`Quality PASS (iterasi ${iteration})`);
+      params.onProgress?.(`Quality PASS ✓`, params.profile.name);
       break;
     }
 
     const failedIds = Object.keys(review.feedback);
     allEvents.push(`Fleet review: ${failedIds.length} sub-agent(s) need rework: ${failedIds.join(", ")}`);
-    params.onProgress?.(`Rework ${failedIds.length} agent (iterasi ${iteration + 1})`);
+    params.onProgress?.(`Rework ${failedIds.length} agent`, params.profile.name);
 
     const subs = params.profile.subAgents ?? [];
     let prior = "";
@@ -520,7 +520,7 @@ export async function runSubAgentFleetWithReview(params: {
       }
 
       allEvents.push(`Fleet rework: re-running ${run.role} (${run.id}) with feedback`);
-      params.onProgress?.(`Rework · ${run.role}`);
+      params.onProgress?.(`Rework · ${run.role}`, params.profile.name);
 
       let output: string | null = null;
       let source: SubAgentRunResult["source"] = "skipped";

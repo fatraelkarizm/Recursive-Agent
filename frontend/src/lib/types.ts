@@ -85,6 +85,8 @@ export type MissionProgressEvent = {
   label: string;
   detail?: string;
   at: string;
+  /** Which agent this event belongs to (for per-agent activity indicators). */
+  agentName?: string;
 };
 
 export type MissionResponse = {

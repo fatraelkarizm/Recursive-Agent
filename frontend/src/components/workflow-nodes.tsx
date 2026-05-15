@@ -86,6 +86,7 @@ type SpecialistNodeData = {
   role: string;
   skillsPreview: string;
   lane?: "frontend" | "backend" | "general";
+  activity?: { label: string; detail?: string; phase?: string } | null;
 };
 
 function specialistShellClass(lane: SpecialistNodeData["lane"]) {
@@ -108,13 +109,25 @@ function SpecialistLaneIcon({ lane }: { lane: SpecialistNodeData["lane"] }) {
 }
 
 export const SpecialistAgentNode = memo(function SpecialistAgentNode({ data }: NodeProps) {
-  const { name, role, skillsPreview, lane } = data as SpecialistNodeData;
+  const { name, role, skillsPreview, lane, activity } = data as SpecialistNodeData;
   const laneResolved = lane ?? "general";
+  const isActive = !!activity;
   return (
     <div
-      className={`min-w-[220px] max-w-[280px] cursor-pointer rounded-xl border-2 px-3 py-3 shadow-lg transition hover:brightness-110 ${specialistShellClass(laneResolved)}`}
+      className={`relative min-w-[220px] max-w-[280px] cursor-pointer rounded-xl border-2 px-3 py-3 shadow-lg transition hover:brightness-110 ${specialistShellClass(laneResolved)} ${isActive ? "ring-1 ring-electric/40" : ""}`}
       title="Klik untuk buka dashboard"
     >
+      {isActive && (
+        <div className="absolute -top-10 left-1/2 z-10 -translate-x-1/2 whitespace-nowrap rounded-lg border border-electric/30 bg-[#0a1628]/95 px-3 py-1.5 shadow-lg shadow-electric/10">
+          <div className="flex items-center gap-1.5">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-electric" />
+            <span className="text-[10px] font-semibold text-electric">{activity!.label}</span>
+          </div>
+          {activity!.detail && (
+            <p className="mt-0.5 max-w-[200px] truncate text-[9px] text-slate">{activity!.detail}</p>
+          )}
+        </div>
+      )}
       <Handle
         type="target"
         position={Position.Top}
@@ -126,6 +139,7 @@ export const SpecialistAgentNode = memo(function SpecialistAgentNode({ data }: N
       >
         <SpecialistLaneIcon lane={laneResolved} />
         <span className="truncate">{name}</span>
+        {isActive && <span className="ml-auto h-2 w-2 animate-pulse rounded-full bg-electric" />}
       </div>
       <p className="mt-1 text-[10px] uppercase tracking-wide text-slate">Specialist agent</p>
       <p className="mt-0.5 font-mono text-[11px] text-white/90">{role}</p>

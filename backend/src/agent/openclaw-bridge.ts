@@ -57,10 +57,9 @@ export async function runOpenClawAgentMessage(params: { message: string; session
     params.message,
     "--json"
   ];
+  // OpenClaw 2026.4.x CLI has no `--model` flag on `agent`; set default model in
+  // ~/.openclaw/openclaw.json (or use OPENCLAW_MODEL only as documentation / future versions).
   const model = process.env.OPENCLAW_MODEL?.trim();
-  if (model) {
-    args.push("--model", model);
-  }
   if (model?.startsWith("deepseek/") && !process.env.DEEPSEEK_API_KEY?.trim()) {
     logger.warn(
       { OPENCLAW_MODEL: model },

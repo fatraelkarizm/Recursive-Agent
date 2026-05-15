@@ -1,4 +1,5 @@
 import path from "node:path";
+import fs from "node:fs";
 import { config as loadEnv } from "dotenv";
 import cors from "cors";
 import express from "express";
@@ -8,10 +9,23 @@ import { runMission } from "./agent/mother-agent";
 import { tavilyExtractOne } from "./capabilities/tavily-extract-one";
 import { getPublicRuntimeDiagnostics } from "./public-runtime-diagnostics";
 
-// Load `backend/.env` even when npm runs the script with cwd = monorepo root (`dotenv/config` alone only reads cwd).
-const backendEnvPath = path.resolve(__dirname, "..", ".env");
-loadEnv({ path: backendEnvPath });
-loadEnv();
+// Load env robustly:
+// - sometimes the server is started from repo root vs from `backend/`
+// - sometimes shells already define OPENAI_COMPAT_* as empty, so dotenv must override
+// Try multiple candidate paths and apply all that exist.
+const envCandidates = [
+  // backend/src/server.ts -> backend/.env
+  path.resolve(__dirname, "..", ".env"),
+  // repoRoot/.env (optional)
+  path.resolve(process.cwd(), ".env"),
+  // repoRoot/backend/.env (most common when started from root)
+  path.resolve(process.cwd(), "backend", ".env"),
+];
+
+for (const p of envCandidates) {
+  if (!fs.existsSync(p)) continue;
+  loadEnv({ path: p, override: true });
+}
 
 const missionSchema = z.object({
   prompt: z.string().min(3),

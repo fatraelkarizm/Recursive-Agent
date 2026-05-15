@@ -159,6 +159,9 @@ Open `http://localhost:3000` — type a mission and watch the agents come to lif
 | `DATABASE_URL` | Recommended | PostgreSQL for mission and agent persistence |
 | `MEM0_API_KEY` | Optional | Persistent agent memory across sessions |
 | `TELEGRAM_BOT_TOKEN` | Optional | Telegram bot for mobile mission input |
+| `MISSION_MAX_LLM_CALLS` | Optional | Max LLM calls per mission (default: 30) |
+| `MISSION_MAX_RUNTIME_MS` | Optional | Max mission runtime in ms (default: 600000) |
+| `MISSION_MAX_REVIEW_CYCLES` | Optional | Max autonomous review cycles (default: 2) |
 
 ## Tech Stack
 

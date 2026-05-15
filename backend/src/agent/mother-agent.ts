@@ -34,6 +34,52 @@ function randomId(length = 8): string {
   return Math.random().toString(36).slice(2, 2 + length);
 }
 
+function fleetReviewMaxIterations(): number {
+  const raw = Number(process.env.FLEET_REVIEW_MAX_ITERATIONS ?? "3");
+  if (!Number.isFinite(raw)) return 3;
+  return Math.min(5, Math.max(1, Math.floor(raw)));
+}
+
+/** Unified mission budget — tracks resource usage across the entire autonomous loop. */
+class MissionBudget {
+  readonly maxLlmCalls: number;
+  readonly maxRuntimeMs: number;
+  readonly maxReviewCycles: number;
+  private llmCalls = 0;
+  private readonly startMs = Date.now();
+  private reviewCycles = 0;
+
+  constructor() {
+    this.maxLlmCalls = Number(process.env.MISSION_MAX_LLM_CALLS ?? "30");
+    this.maxRuntimeMs = Number(process.env.MISSION_MAX_RUNTIME_MS ?? "600000");
+    this.maxReviewCycles = Number(process.env.MISSION_MAX_REVIEW_CYCLES ?? "2");
+  }
+
+  trackLlmCall(count = 1): void { this.llmCalls += count; }
+  trackReviewCycle(): void { this.reviewCycles++; }
+
+  get elapsedMs(): number { return Date.now() - this.startMs; }
+  get totalLlmCalls(): number { return this.llmCalls; }
+  get totalReviewCycles(): number { return this.reviewCycles; }
+
+  get canContinue(): boolean {
+    return this.llmCalls < this.maxLlmCalls
+      && this.elapsedMs < this.maxRuntimeMs
+      && this.reviewCycles < this.maxReviewCycles;
+  }
+
+  get exhaustionReason(): string | null {
+    if (this.llmCalls >= this.maxLlmCalls) return `LLM call limit (${this.maxLlmCalls})`;
+    if (this.elapsedMs >= this.maxRuntimeMs) return `runtime limit (${Math.round(this.maxRuntimeMs / 1000)}s)`;
+    if (this.reviewCycles >= this.maxReviewCycles) return `review cycle limit (${this.maxReviewCycles})`;
+    return null;
+  }
+
+  summary(): string {
+    return `Budget: ${this.llmCalls}/${this.maxLlmCalls} LLM calls, ${Math.round(this.elapsedMs / 1000)}s/${Math.round(this.maxRuntimeMs / 1000)}s runtime, ${this.reviewCycles}/${this.maxReviewCycles} review cycles`;
+  }
+}
+
 export async function runMission(
   payload: MissionPayload,
   onProgress?: MissionProgressEmitter
@@ -41,6 +87,13 @@ export async function runMission(
   const emit = createProgressEmitter(onProgress);
   const missionId = randomId(10);
   const effectivePrompt = buildEffectiveMissionPrompt(payload);
+  const budget = new MissionBudget();
+
+  emit({
+    phase: "mother-planning",
+    label: "Autonomous loop: PLAN phase",
+    detail: `Budget: max ${budget.maxLlmCalls} LLM calls, ${Math.round(budget.maxRuntimeMs / 1000)}s runtime, ${budget.maxReviewCycles} review cycles`
+  });
 
   emit({
     phase: "tools",
@@ -189,6 +242,12 @@ export async function runMission(
     browserContext = browserEvent;
   }
 
+  emit({
+    phase: "fleet-run",
+    label: "Autonomous loop: ACT phase",
+    detail: "Executing fleet with plan-act-observe-decide cycle"
+  });
+
   let fleetSummary: MissionResult["fleetSummary"];
   if (isAutoOrchestrationEnabled() && profile.subAgents?.length) {
     emit({
@@ -196,18 +255,20 @@ export async function runMission(
       label: "Fleet + auto-review loop",
       detail: `${profile.subAgents.length} sub-agent — iterasi sampai standar industri`
     });
+    const maxIterations = fleetReviewMaxIterations();
     const fleet = await runSubAgentFleetWithReview({
       missionId,
       motherPrompt: synthPrompt,
       profile,
       openClawContext,
-      maxIterations: 3,
+      maxIterations,
       onProgress: (subLabel) => {
         emit({ phase: "fleet-run", label: subLabel });
       }
     });
     events.push(...fleet.events);
     fleetSummary = fleet.summary;
+    budget.trackLlmCall(fleet.iterations * (profile.subAgents?.length ?? 1) + fleet.iterations);
     if (fleet.iterations > 1) {
       events.push(`Fleet auto-review: ${fleet.iterations} iterasi untuk mencapai standar industri.`);
     }
@@ -271,20 +332,97 @@ export async function runMission(
     }
   }
 
+  emit({
+    phase: "mother-review",
+    label: "Autonomous loop: OBSERVE phase",
+    detail: `${quality.verdicts.filter((v) => v.verdict === "pass").length} pass, ${quality.verdicts.filter((v) => v.verdict === "rework").length} rework`
+  });
+
   const reworkTargets = quality.verdicts.filter((v) => v.verdict === "rework");
-  if (reworkTargets.length > 0) {
+  budget.trackLlmCall();
+
+  if (reworkTargets.length > 0 && budget.canContinue) {
+    budget.trackReviewCycle();
     emit({
       phase: "mother-review",
-      label: "Central Agent rework agent",
-      detail: reworkTargets.map((r) => r.agentName).join(", ")
+      label: "Autonomous loop: DECIDE → REWORK",
+      detail: `Re-running ${reworkTargets.length} agent(s): ${reworkTargets.map((r) => r.agentName).join(", ")} | ${budget.summary()}`
     });
+
     for (const v of reworkTargets) {
       const agent = squad.find((s) => s.name === v.agentName) ?? fleetLead;
       enrichSquadWithDiscoveredSkills([agent], skillDiscovery.catalog);
       refreshPlainArtifacts(agent, synthPrompt);
-      events.push(`Central Agent: re-enriched skills untuk ${agent.name}`);
+
+      if (agent.subAgents?.length && isAutoOrchestrationEnabled() && budget.canContinue) {
+        emit({
+          phase: "fleet-run",
+          label: `Re-run fleet · ${agent.name}`,
+          detail: v.instructions ?? "Rework berdasarkan review feedback"
+        });
+
+        const reworkContext = buildOpenClawMissionContext({
+          payload,
+          effectivePrompt: synthPrompt,
+          webResearch,
+          fleetLead: agent,
+          squad,
+          knowledgeDigest: skillDiscovery.knowledgeDigest,
+          fleetMergedReport: fleetSummary?.mergedReport
+        });
+
+        const reworkFleet = await runSubAgentFleetWithReview({
+          missionId,
+          motherPrompt: `${synthPrompt}\n\nREWORK INSTRUCTIONS: ${v.instructions ?? "Improve quality to meet industry standards."}`,
+          profile: agent,
+          openClawContext: reworkContext,
+          maxIterations: 2,
+          onProgress: (subLabel) => {
+            emit({ phase: "fleet-run", label: `Rework · ${subLabel}` });
+          }
+        });
+        events.push(...reworkFleet.events);
+        budget.trackLlmCall(reworkFleet.iterations * (agent.subAgents?.length ?? 1));
+
+        if (fleetSummary && reworkFleet.summary.mergedReport) {
+          fleetSummary = {
+            mergedReport: reworkFleet.summary.mergedReport,
+            subAgentRuns: [
+              ...fleetSummary.subAgentRuns.filter(
+                (r) => !reworkFleet.summary.subAgentRuns.some((rr) => rr.id === r.id)
+              ),
+              ...reworkFleet.summary.subAgentRuns
+            ]
+          };
+        }
+        events.push(`Autonomous rework: ${agent.name} re-executed (${reworkFleet.iterations} iter, ${reworkFleet.summary.subAgentRuns.length} sub-agents)`);
+      } else {
+        events.push(`Central Agent: re-enriched skills untuk ${agent.name} (no fleet re-run — budget: ${budget.summary()})`);
+      }
     }
+
+    emit({
+      phase: "mother-review",
+      label: "Autonomous loop: OBSERVE (post-rework)",
+      detail: budget.summary()
+    });
+  } else if (reworkTargets.length > 0) {
+    events.push(`Autonomous loop: rework needed but budget exhausted — ${budget.exhaustionReason}. Delivering best available output.`);
+    emit({
+      phase: "mother-review",
+      label: "Autonomous loop: DECIDE → DELIVER (budget limit)",
+      detail: budget.exhaustionReason ?? ""
+    });
+  } else {
+    events.push("Autonomous loop: all agents PASS quality review.");
+    emit({
+      phase: "mother-review",
+      label: "Autonomous loop: DECIDE → DELIVER (all pass)",
+      detail: budget.summary()
+    });
   }
+
+  events.push(`Autonomous loop complete. ${budget.summary()}`);
 
   const centralSkillMd = buildCentralAgentSkillMd(squad, synthPrompt);
   const centralReadmeMd = buildCentralAgentReadme(squad, synthPrompt, motherBrief);

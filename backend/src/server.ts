@@ -179,7 +179,7 @@ app.post("/api/missions/stream", async (req, res) => {
   res.setHeader("Connection", "keep-alive");
   res.setHeader("X-Accel-Buffering", "no");
   req.setTimeout(0);
-  res.setTimeout(600_000);
+  res.setTimeout(0);
   res.flushHeaders?.();
 
   const write = (event: string, data: unknown) => {
@@ -191,6 +191,11 @@ app.post("/api/missions/stream", async (req, res) => {
     if (res.writableEnded) return;
     write(event, data);
   };
+
+  const heartbeat = setInterval(() => {
+    if (res.writableEnded) return;
+    res.write(`: heartbeat ${new Date().toISOString()}\n\n`);
+  }, 15_000);
 
   const missionPromise = runMission(parsed.data, (progress) => {
     safeWrite("progress", progress);
@@ -204,6 +209,7 @@ app.post("/api/missions/stream", async (req, res) => {
     logger.error({ error }, "Mission stream failed");
     safeWrite("error", { message });
   } finally {
+    clearInterval(heartbeat);
     if (!res.writableEnded) res.end();
   }
 });

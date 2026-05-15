@@ -177,8 +177,8 @@ function cloneEdges(edges: Edge[]): Edge[] {
   return edges.map((e) => ({ ...e, style: e.style ? { ...e.style } : undefined }));
 }
 
-function isPlaceholderProfile(profile: SpecialistAgentProfile): boolean {
-  return profile.role === "pending" && profile.name === "Pending Agent";
+function isPlaceholderProfile(profile: SpecialistAgentProfile | undefined): boolean {
+  return !profile || (profile.role === "pending" && profile.name === "Pending Agent");
 }
 
 type FlowSurfaceProps = {

@@ -99,7 +99,7 @@ ZAPIER_MCP_URL="https://..."
 TAVILY_API_KEY="tvly-..."
 
 # Persistence (backend)
-DATABASE_URL="postgresql://recursive:postgres@localhost:5432/recursive_agent?schema=public"
+DATABASE_URL="postgresql://recursive@localhost:5432/recursive_agent?schema=public"
 REDIS_URL="redis://..."
 
 # Optional observability
@@ -125,7 +125,7 @@ docker run --name recursive-agent-postgres \
 Set `backend/.env`:
 
 ```env
-DATABASE_URL="postgresql://recursive:postgres@localhost:5432/recursive_agent?schema=public"
+DATABASE_URL="postgresql://recursive@localhost:5432/recursive_agent?schema=public"
 ```
 
 If you already created the `recursive_agent` database in pgAdmin, also create the matching login role or change `DATABASE_URL` to an existing PostgreSQL user.
@@ -136,7 +136,7 @@ Run this in pgAdmin Query Tool while connected as a superuser such as `postgres`
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'recursive') THEN
-    CREATE ROLE recursive WITH LOGIN PASSWORD 'postgres';
+    CREATE ROLE recursive WITH LOGIN;
   END IF;
 END
 $$;
@@ -145,6 +145,8 @@ ALTER DATABASE recursive_agent OWNER TO recursive;
 GRANT ALL PRIVILEGES ON DATABASE recursive_agent TO recursive;
 GRANT USAGE, CREATE ON SCHEMA public TO recursive;
 ```
+
+This assumes your local PostgreSQL accepts local connections for role `recursive` without a password. If your install requires passwords, either add a password to the role or use your existing PostgreSQL user in `DATABASE_URL`.
 
 If you prefer using your existing `postgres` account instead, set:
 
@@ -158,6 +160,8 @@ Generate the Prisma client and apply the schema:
 npm --workspace backend run db:generate
 npm --workspace backend run db:migrate
 ```
+
+`db:migrate` uses `prisma migrate deploy`, so it applies the committed migration without creating a Prisma shadow database. If you are actively editing Prisma schema and your role has `CREATEDB`, use `npm --workspace backend run db:migrate:dev`.
 
 If `DATABASE_URL` is not configured, the backend still runs and returns mission responses, but the response events will include `Persistence skipped: DATABASE_URL is not configured`.
 

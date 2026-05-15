@@ -119,7 +119,7 @@ The backend stores completed missions, generated specialist profiles, and ordere
 - `specialist_profiles`
 - `mission_events`
 
-Set `DATABASE_URL` in `backend/.env` and run `npm --workspace backend run db:migrate`. If `DATABASE_URL` is absent, the mission still completes and the returned events explain that persistence was skipped.
+Set `DATABASE_URL` in `backend/.env` and run `npm --workspace backend run db:migrate`. This applies committed Prisma migrations without creating a shadow database. If `DATABASE_URL` is absent, the mission still completes and the returned events explain that persistence was skipped.
 
 ## Key Product Principles
 - Visible agent behavior is better than a black box.

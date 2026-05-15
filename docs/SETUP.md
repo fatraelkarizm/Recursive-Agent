@@ -128,6 +128,30 @@ Set `backend/.env`:
 DATABASE_URL="postgresql://recursive:postgres@localhost:5432/recursive_agent?schema=public"
 ```
 
+If you already created the `recursive_agent` database in pgAdmin, also create the matching login role or change `DATABASE_URL` to an existing PostgreSQL user.
+
+Run this in pgAdmin Query Tool while connected as a superuser such as `postgres`:
+
+```sql
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'recursive') THEN
+    CREATE ROLE recursive WITH LOGIN PASSWORD 'postgres';
+  END IF;
+END
+$$;
+
+ALTER DATABASE recursive_agent OWNER TO recursive;
+GRANT ALL PRIVILEGES ON DATABASE recursive_agent TO recursive;
+GRANT USAGE, CREATE ON SCHEMA public TO recursive;
+```
+
+If you prefer using your existing `postgres` account instead, set:
+
+```env
+DATABASE_URL="postgresql://postgres:<your-password>@localhost:5432/recursive_agent?schema=public"
+```
+
 Generate the Prisma client and apply the schema:
 
 ```bash

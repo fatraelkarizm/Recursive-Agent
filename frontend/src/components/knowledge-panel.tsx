@@ -10,6 +10,7 @@ type KnowledgePanelProps = {
   squadSource: string | null;
   progress: MissionProgressEvent[];
   agentCount?: number;
+  knowledgeStats?: { skillCount: number; docCount: number } | null;
 };
 
 export function KnowledgePanel({
@@ -18,7 +19,8 @@ export function KnowledgePanel({
   motherReview,
   squadSource,
   progress,
-  agentCount = 0
+  agentCount = 0,
+  knowledgeStats
 }: KnowledgePanelProps) {
   const hasContext = Boolean(bundle.contextNotes?.trim());
   const urls = bundle.referenceUrlsText
@@ -55,10 +57,24 @@ export function KnowledgePanel({
           </article>
         ) : null}
 
-        {agentCount > 0 ? (
-          <p className="text-[10px] text-slate/70">
-            {agentCount} agent di canvas (persisten — tidak hilang saat refresh).
-          </p>
+        {(agentCount > 0 || knowledgeStats) ? (
+          <div className="flex flex-wrap gap-2 text-[10px]">
+            {agentCount > 0 && (
+              <span className="rounded border border-electric/25 bg-electric/10 px-2 py-0.5 text-electric">
+                {agentCount} agent (persisten)
+              </span>
+            )}
+            {knowledgeStats && knowledgeStats.skillCount > 0 && (
+              <span className="rounded border border-teal-400/25 bg-teal-500/10 px-2 py-0.5 text-teal-300">
+                {knowledgeStats.skillCount} skills
+              </span>
+            )}
+            {knowledgeStats && knowledgeStats.docCount > 0 && (
+              <span className="rounded border border-violet-400/25 bg-violet-500/10 px-2 py-0.5 text-violet-300">
+                {knowledgeStats.docCount} web sources
+              </span>
+            )}
+          </div>
         ) : null}
 
         {hasContext ? (

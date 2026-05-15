@@ -88,5 +88,9 @@ export type MissionResult = {
   squadSource?: "mother-llm" | "fallback-rules";
   /** Central Agent quality review markdown (per-agent pass/rework). */
   motherReview?: string;
+  /** Central Agent aggregated SKILL.md (all squad + sub-agent skills merged). */
+  centralSkillMd?: string;
+  /** Central Agent aggregated README.md. */
+  centralReadmeMd?: string;
   events: string[];
 };

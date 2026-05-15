@@ -5,7 +5,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppHeader } from "@/components/app-header";
 import { ControlChatPanel } from "@/components/control-chat-panel";
 import { KnowledgePanel } from "@/components/knowledge-panel";
-import { TerminalDrawer } from "@/components/terminal-drawer";
 import { VitalsPanel } from "@/components/vitals-panel";
 import { WorkspaceRail } from "@/components/workspace-rail";
 import { AgentDashboardModal, type AgentDashboardTarget } from "@/components/agent-dashboard-modal";
@@ -82,6 +81,10 @@ export default function Page() {
   const [canvasViewMode, setCanvasViewMode] = useState<CanvasViewMode>(() => loadCanvasViewMode());
   const [hiddenAgentIds, setHiddenAgentIds] = useState<Set<string>>(() => loadHiddenAgentIds());
   const [agentsBusy, setAgentsBusy] = useState(false);
+  const [missionStartedAt, setMissionStartedAt] = useState<number | null>(null);
+  const [missionElapsedMs, setMissionElapsedMs] = useState<number | null>(null);
+  const [centralSkillMd, setCentralSkillMd] = useState<string | null>(null);
+  const [centralReadmeMd, setCentralReadmeMd] = useState<string | null>(null);
 
   const loadAgents = useCallback(async () => {
     try {
@@ -121,6 +124,14 @@ export default function Page() {
     return () => cancelAnimationFrame(id);
   }, [squad]);
 
+  useEffect(() => {
+    if (!missionStartedAt || status !== "running") return;
+    const interval = setInterval(() => {
+      setMissionElapsedMs(Date.now() - missionStartedAt);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [missionStartedAt, status]);
+
   async function handleRunMission() {
     if (!prompt.trim() || busy) return;
 
@@ -128,6 +139,8 @@ export default function Page() {
     setStatus("running");
     setProgress([]);
     setProgressCurrent(null);
+    setMissionStartedAt(Date.now());
+    setMissionElapsedMs(0);
     const promptTrim = prompt.trim();
     setLastMissionPrompt(promptTrim);
 
@@ -150,12 +163,14 @@ export default function Page() {
             setMotherBrief(result.motherBrief ?? null);
             setMotherReview(result.motherReview ?? null);
             setSquadSource(result.squadSource ?? null);
+            setCentralSkillMd(result.centralSkillMd ?? null);
+            setCentralReadmeMd(result.centralReadmeMd ?? null);
             setStatus(result.status);
-
-            // Hasil mission -> Knowledge / Terminal / Central dashboard (bukan chat assistant yang menutupi UI).
+            if (missionStartedAt) setMissionElapsedMs(Date.now() - missionStartedAt);
           },
           onError: (message) => {
             setStatus("failed");
+            if (missionStartedAt) setMissionElapsedMs(Date.now() - missionStartedAt);
             console.error(message);
           }
         }
@@ -171,6 +186,18 @@ export default function Page() {
       setProgressCurrent(null);
     }
   }
+
+  const knowledgeStats = useMemo(() => {
+    const allSkills = new Set<string>();
+    for (const agent of squad) {
+      for (const sk of agent.skills ?? []) allSkills.add(sk.id);
+    }
+    const skillCount = allSkills.size;
+    const docHint = progress.find((p) => p.label?.includes("sumber"));
+    const docMatch = docHint?.label?.match(/(\d+)\s*sumber/);
+    const docCount = docMatch ? parseInt(docMatch[1], 10) : 0;
+    return skillCount > 0 || docCount > 0 ? { skillCount, docCount } : null;
+  }, [squad, progress]);
 
   const canvasAgents = squad.filter((a) => !isPlaceholderAgent(a));
 
@@ -266,6 +293,8 @@ export default function Page() {
         onKeepLatestMissionAgents={handleKeepLatestMission}
         onClearAllAgents={handleClearAllAgents}
         agentsBusy={agentsBusy}
+        centralSkillMd={centralSkillMd}
+        centralReadmeMd={centralReadmeMd}
       />
       <AgentDashboardModal
         open={dashTarget !== null}
@@ -295,10 +324,11 @@ export default function Page() {
               motherThinking={busy}
               motherProgressCurrent={progressCurrent}
               motherProgressHistory={progress}
+              knowledgeStats={knowledgeStats}
             />
           )}
           </div>
-          <div className="grid max-h-[min(28vh,240px)] shrink-0 grid-cols-1 gap-2 overflow-hidden lg:grid-cols-3">
+          <div className="grid max-h-[min(28vh,240px)] shrink-0 grid-cols-1 gap-2 overflow-hidden lg:grid-cols-2">
             <KnowledgePanel
               bundle={motherBundle}
               motherBrief={motherBrief}
@@ -306,9 +336,15 @@ export default function Page() {
               squadSource={squadSource}
               progress={progress}
               agentCount={visibleCanvasAgents.length}
+              knowledgeStats={knowledgeStats}
             />
-            <VitalsPanel status={status} />
-            <TerminalDrawer events={messages.filter((m) => m.role === "assistant").slice(-1)} />
+            <VitalsPanel
+              status={status}
+              elapsedMs={missionElapsedMs}
+              agentCount={visibleCanvasAgents.length}
+              skillCount={knowledgeStats?.skillCount ?? 0}
+              docCount={knowledgeStats?.docCount ?? 0}
+            />
           </div>
         </section>
 

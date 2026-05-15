@@ -1,4 +1,4 @@
-/** Plain text only: no asterisks, backticks, headings markup. Preserves ```html fences for live preview. */
+/** Plain text only: no asterisks, backticks, headings markup, code comments. Preserves ```html fences for live preview. */
 export function stripMarkdownToPlainText(input: string): string {
   const htmlBlocks: string[] = [];
   let t = input;
@@ -20,6 +20,15 @@ export function stripMarkdownToPlainText(input: string): string {
   t = t.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1");
   t = t.replace(/!\[([^\]]*)\]\([^)]+\)/g, "$1");
   t = t.replace(/^---+$/gm, "");
+
+  // Strip code-style comments and artifacts
+  t = t.replace(/^\s*\/\/.*$/gm, "");
+  t = t.replace(/\/\*[\s\S]*?\*\//g, "");
+  t = t.replace(/^\s*<!--[\s\S]*?-->\s*$/gm, "");
+  t = t.replace(/\{[^}]*\}/g, "");
+  t = t.replace(/<[^>]+>/g, "");
+  t = t.replace(/^\s*@\w+.*$/gm, "");
+
   t = t.replace(/\n{3,}/g, "\n\n");
 
   htmlBlocks.forEach((block, i) => {

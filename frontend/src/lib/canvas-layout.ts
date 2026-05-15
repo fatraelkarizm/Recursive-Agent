@@ -9,10 +9,11 @@ const BOUNDS: Record<string, { w: number; h: number }> = {
   trigger: { w: 168, h: 52 },
   branch: { w: 168, h: 52 },
   action: { w: 208, h: 60 },
+  knowledge: { w: 260, h: 140 },
   default: { w: 200, h: 56 }
 };
 
-const STATIC_IDS = new Set(["trigger", "mother", "branch", "tool-heavy", "sandbox"]);
+const STATIC_IDS = new Set(["trigger", "mother", "branch", "tool-heavy", "knowledge"]);
 
 function boundsFor(node: Node): Rect {
   const b = BOUNDS[node.type ?? "default"] ?? BOUNDS.default;

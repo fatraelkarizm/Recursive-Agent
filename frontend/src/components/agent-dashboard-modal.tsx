@@ -124,6 +124,8 @@ export function AgentDashboardModal({
     return () => cancelAnimationFrame(id);
   }, [open]);
 
+  const currentSkillMd = skillMd;
+  const currentActiveSpecialist = activeSpecialist;
   useEffect(() => {
     if (!open || !target) return;
     const readmeForDefault =
@@ -134,13 +136,14 @@ export function AgentDashboardModal({
               : specialists
           )
         : (() => {
-            const own = activeSpecialist?.readmeMd ?? "";
+            const own = currentActiveSpecialist?.readmeMd ?? "";
             return own && extractFirstHtmlFence(own) ? own : findReadmeWithHtmlFence(specialists);
           })();
-    const next: TabId = skillMd.trim().length > 0 ? "skill" : readmeForDefault.trim().length > 0 ? "readme" : "overview";
+    const next: TabId = currentSkillMd.trim().length > 0 ? "skill" : readmeForDefault.trim().length > 0 ? "readme" : "overview";
     const id = requestAnimationFrame(() => setTab(next));
     return () => cancelAnimationFrame(id);
-  }, [open, target, specialists, activeSpecialist, activeMissionId, skillMd]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, target, specialists, activeMissionId]);
 
   useEffect(() => {
     if (!open || tab !== "config") return;

@@ -5,7 +5,6 @@ import { orchestrateViaOpenClaw, shouldRunOpenClaw } from "./openclaw-bridge";
 import { runSubAgentFleet } from "./fleet-orchestrator";
 import { synthesizeSquadFromMother } from "./mother-synthesize";
 import { runToolRoute } from "./tool-router";
-import { runSandboxTask } from "../sandbox/e2b";
 import { browserTouchFromPrompt } from "../capabilities/browser";
 import { enrichProfileReadmeWithSumopod } from "../compat/openai-compatible-chat";
 import {
@@ -22,7 +21,7 @@ import {
   enrichSubAgentsWithDiscoveredSkills,
   enrichSquadWithDiscoveredSkills
 } from "./skill-discovery";
-import { attachSpecialistArtifacts, refreshPlainArtifacts } from "./specialist-artifacts";
+import { attachSpecialistArtifacts, buildCentralAgentReadme, buildCentralAgentSkillMd, refreshPlainArtifacts } from "./specialist-artifacts";
 import { buildOpenClawMissionContext } from "./mother-openclaw-context";
 import { ensureLeadFleetReady, isAutoOrchestrationEnabled } from "./specializations";
 import { updateCanvasAgentProfile } from "../db/agent-store";
@@ -201,12 +200,9 @@ export async function runMission(
     events.push(oc);
   }
 
-  emit({ phase: "tools", label: "Tool route & sandbox" });
+  emit({ phase: "tools", label: "Tool route" });
   const toolEvent = await runToolRoute(effectivePrompt, { preferTavilySearch: payload.preferTavilySearch === true });
   events.push(`Tool route: ${toolEvent}`);
-
-  const sandboxEvent = await runSandboxTask("echo specialist-agent-ready");
-  events.push(`Sandbox: ${sandboxEvent}`);
 
   emit({
     phase: "mother-review",
@@ -268,6 +264,9 @@ export async function runMission(
     }
   }
 
+  const centralSkillMd = buildCentralAgentSkillMd(squad, synthPrompt);
+  const centralReadmeMd = buildCentralAgentReadme(squad, synthPrompt, motherBrief);
+
   let finalSquad = squad;
   const resultLead = fleetLead;
   const result: MissionResult = {
@@ -279,6 +278,8 @@ export async function runMission(
     motherBrief,
     motherReview,
     squadSource: source,
+    centralSkillMd,
+    centralReadmeMd,
     events
   };
 

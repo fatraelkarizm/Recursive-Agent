@@ -4,7 +4,7 @@ import { memo } from "react";
 import { Handle, NodeToolbar, Position, type NodeProps } from "@xyflow/react";
 import { MotherThoughtBubble } from "@/components/mother-thought-bubble";
 import type { MissionProgressEvent } from "@/lib/types";
-import { Bot, ClipboardCheck, Database, GitBranch, LayoutTemplate, Search, Wrench, Zap } from "lucide-react";
+import { Bot, BookOpen, ClipboardCheck, Database, GitBranch, Globe, LayoutTemplate, Search, Wrench, Zap } from "lucide-react";
 
 type LabelData = { label: string };
 type ActionData = { label: string; sub: string };
@@ -223,6 +223,45 @@ export const ActionNode = memo(function ActionNode({ data }: NodeProps) {
       <Handle type="target" position={Position.Left} className="!h-2 !w-2 !border-0 !bg-slate" />
       <div className="text-xs font-semibold text-white">{label}</div>
       <div className="mt-1 text-[10px] text-slate">{sub}</div>
+    </div>
+  );
+});
+
+type KnowledgeNodeData = {
+  label: string;
+  sources: string[];
+  skillCount: number;
+  docCount: number;
+};
+
+export const KnowledgeNode = memo(function KnowledgeNode({ data }: NodeProps) {
+  const { label, sources, skillCount, docCount } = data as KnowledgeNodeData;
+  return (
+    <div className="min-w-[200px] max-w-[260px] rounded-xl border-2 border-teal-400/70 bg-[#051a1a] px-3 py-3 shadow-lg">
+      <Handle type="target" position={Position.Left} className="!h-2 !w-2 !border-0 !bg-teal-400" />
+      <div className="flex items-center gap-2 border-b border-white/10 pb-2 text-xs font-semibold text-teal-200">
+        <BookOpen className="h-4 w-4 text-teal-300" aria-hidden />
+        {label}
+      </div>
+      <div className="mt-2 space-y-1.5">
+        <div className="flex items-center gap-1.5 text-[10px] text-slate">
+          <Globe className="h-3 w-3 text-teal-400" aria-hidden />
+          <span className="text-white font-mono">{docCount}</span> sumber web
+        </div>
+        <div className="flex items-center gap-1.5 text-[10px] text-slate">
+          <Search className="h-3 w-3 text-teal-400" aria-hidden />
+          <span className="text-white font-mono">{skillCount}</span> skills extracted
+        </div>
+        {sources.length > 0 && (
+          <ul className="mt-1 space-y-0.5">
+            {sources.slice(0, 5).map((s) => (
+              <li key={s} className="truncate rounded border border-dashed border-teal-500/30 bg-black/20 px-2 py-0.5 text-[9px] text-teal-100/80">
+                {s}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   );
 });

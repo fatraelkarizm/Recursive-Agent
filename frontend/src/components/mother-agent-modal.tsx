@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { BookOpen, Layers, Loader2, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { BookOpen, ChevronDown, ChevronRight, Globe, Layers, Loader2, Search, Wrench, X, Zap } from "lucide-react";
 import { MotherAgentManagement } from "@/components/mother-agent-management";
 import { fetchRuntimeDiagnostics, previewExtract } from "@/lib/api";
 import type { CanvasViewMode } from "@/lib/canvas-agent-prefs";
@@ -46,10 +46,12 @@ export function motherBundleToMissionExtras(bundle: MotherMissionBundle): {
   };
 }
 
-type TabId = "overview" | "agents" | "config" | "services" | "context" | "task" | "hasil";
+type TabId = "overview" | "agents" | "skill" | "readme" | "config" | "services" | "context" | "task" | "hasil";
 
 const TABS: { id: TabId; label: string }[] = [
   { id: "overview", label: "Ringkas" },
+  { id: "skill", label: "SKILL.md" },
+  { id: "readme", label: "README.md" },
   { id: "agents", label: "Kelola agent" },
   { id: "config", label: "Config" },
   { id: "services", label: "Services" },
@@ -75,6 +77,8 @@ type MotherAgentModalProps = {
   onKeepLatestMissionAgents: () => void;
   onClearAllAgents: () => void;
   agentsBusy?: boolean;
+  centralSkillMd?: string | null;
+  centralReadmeMd?: string | null;
 };
 
 export function MotherAgentModal({
@@ -93,7 +97,9 @@ export function MotherAgentModal({
   onDeleteAgent,
   onKeepLatestMissionAgents,
   onClearAllAgents,
-  agentsBusy
+  agentsBusy,
+  centralSkillMd,
+  centralReadmeMd
 }: MotherAgentModalProps) {
   const [tab, setTab] = useState<TabId>("overview");
   const [local, setLocal] = useState<MotherMissionBundle>(bundle);
@@ -261,6 +267,37 @@ export function MotherAgentModal({
                 Alur manual: isi konteks → (opsional) cuplikkan docs di Services → tulis review di Konteks &amp; iterasi
                 → Run mission dari chat → baca Hasil di sini atau buka dashboard specialist/sub.
               </p>
+            </div>
+          )}
+
+          {tab === "skill" && (
+            <CentralSkillCards
+              centralSkillMd={centralSkillMd ?? null}
+              specialists={specialists.filter((s) => s.role !== "pending")}
+            />
+          )}
+
+          {tab === "readme" && (
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs text-slate">README Central Agent — ringkasan misi dan semua agent yang diproduce.</p>
+                {centralReadmeMd?.trim() ? (
+                  <button
+                    type="button"
+                    className="shrink-0 rounded border border-white/15 bg-white/5 px-2 py-1 text-[10px] text-violet-300 hover:bg-white/10"
+                    onClick={() => void navigator.clipboard.writeText(centralReadmeMd)}
+                  >
+                    Copy README
+                  </button>
+                ) : null}
+              </div>
+              {centralReadmeMd?.trim() ? (
+                <pre className="max-h-[min(68vh,680px)] overflow-auto whitespace-pre-wrap rounded-lg border border-white/10 bg-black/50 p-3 text-[12px] leading-relaxed text-slate-100 sm:text-[13px]">
+                  {centralReadmeMd}
+                </pre>
+              ) : (
+                <p className="text-sm text-slate">Belum ada README Central Agent. Jalankan misi dulu.</p>
+              )}
             </div>
           )}
 
@@ -475,6 +512,219 @@ export function MotherAgentModal({
             </button>
           </div>
         </footer>
+      </div>
+    </div>
+  );
+}
+
+type ParsedSkill = {
+  label: string;
+  description: string;
+  kind: string;
+  source?: string;
+};
+
+type SkillGroup = {
+  label: string;
+  kind: string;
+  skills: ParsedSkill[];
+};
+
+function parseSkillsFromText(text: string): ParsedSkill[] {
+  const skills: ParsedSkill[] = [];
+  const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+
+  for (const line of lines) {
+    const dotSplit = line.match(/^(.+?)\.\s+(.+)$/);
+    if (dotSplit && dotSplit[1].length < 80 && dotSplit[2].length > 10) {
+      const label = dotSplit[1].trim();
+      const rest = dotSplit[2].trim();
+      const kindMatch = rest.match(/Jenis:\s*(\w+)/i);
+      const sourceMatch = rest.match(/\((?:sumber|dari):\s*(.+?)\)/i);
+      const kind = kindMatch?.[1] ?? "other";
+      const desc = rest
+        .replace(/Jenis:\s*\w+\.?/i, "")
+        .replace(/\((?:sumber|dari):\s*.+?\)/i, "")
+        .trim();
+      skills.push({ label, description: desc || rest, kind, source: sourceMatch?.[1] });
+    }
+  }
+
+  return skills;
+}
+
+function groupSkills(skills: ParsedSkill[]): SkillGroup[] {
+  const kindLabels: Record<string, string> = {
+    touch: "Riset dan Ekstraksi",
+    generate: "Produksi dan Generate",
+    orchestrate: "Orkestrasi dan Koordinasi",
+    other: "Lainnya"
+  };
+
+  const groups: Record<string, ParsedSkill[]> = {};
+  for (const sk of skills) {
+    const k = sk.kind in kindLabels ? sk.kind : "other";
+    (groups[k] ??= []).push(sk);
+  }
+
+  return Object.entries(groups).map(([kind, items]) => ({
+    label: kindLabels[kind] ?? kind,
+    kind,
+    skills: items
+  }));
+}
+
+function kindIcon(kind: string) {
+  const cls = "h-4 w-4 shrink-0";
+  if (kind === "touch") return <Search className={`${cls} text-cyan-400`} />;
+  if (kind === "generate") return <Wrench className={`${cls} text-amber-400`} />;
+  if (kind === "orchestrate") return <Zap className={`${cls} text-violet-400`} />;
+  return <Globe className={`${cls} text-slate`} />;
+}
+
+function kindBorder(kind: string) {
+  if (kind === "touch") return "border-cyan-500/30 bg-cyan-500/5";
+  if (kind === "generate") return "border-amber-500/30 bg-amber-500/5";
+  if (kind === "orchestrate") return "border-violet-500/30 bg-violet-500/5";
+  return "border-white/10 bg-white/[0.02]";
+}
+
+function CentralSkillCards({ centralSkillMd, specialists }: { centralSkillMd: string | null; specialists: SpecialistAgentProfile[] }) {
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const [expandedSkills, setExpandedSkills] = useState<Set<string>>(new Set());
+
+  const allSkills = useMemo(() => {
+    const skills: ParsedSkill[] = [];
+    const seen = new Set<string>();
+
+    if (centralSkillMd) {
+      for (const sk of parseSkillsFromText(centralSkillMd)) {
+        if (!seen.has(sk.label)) {
+          seen.add(sk.label);
+          skills.push(sk);
+        }
+      }
+    }
+
+    for (const agent of specialists) {
+      for (const sk of agent.skills ?? []) {
+        if (!seen.has(sk.label)) {
+          seen.add(sk.label);
+          skills.push({
+            label: sk.label,
+            description: sk.description,
+            kind: sk.kind,
+            source: `agent ${agent.name}`
+          });
+        }
+      }
+    }
+
+    return skills;
+  }, [centralSkillMd, specialists]);
+
+  const groups = useMemo(() => groupSkills(allSkills), [allSkills]);
+
+  const toggleGroup = (kind: string) => {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(kind)) next.delete(kind); else next.add(kind);
+      return next;
+    });
+  };
+
+  const toggleSkill = (label: string) => {
+    setExpandedSkills((prev) => {
+      const next = new Set(prev);
+      if (next.has(label)) next.delete(label); else next.add(label);
+      return next;
+    });
+  };
+
+  if (allSkills.length === 0) {
+    return (
+      <div className="space-y-3">
+        <p className="text-sm text-slate">Belum ada SKILL.md. Jalankan misi untuk extract skills dari web.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs text-slate">
+          SKILL Central Agent. Total {allSkills.length} skills dari {specialists.length} specialist + web extraction.
+        </p>
+        {centralSkillMd?.trim() ? (
+          <button
+            type="button"
+            className="shrink-0 rounded border border-white/15 bg-white/5 px-2 py-1 text-[10px] text-violet-300 hover:bg-white/10"
+            onClick={() => void navigator.clipboard.writeText(centralSkillMd)}
+          >
+            Copy raw SKILL
+          </button>
+        ) : null}
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {groups.map((g) => (
+          <div key={g.kind} className={`rounded-xl border p-3 ${kindBorder(g.kind)}`}>
+            <div className="flex items-center gap-2">
+              {kindIcon(g.kind)}
+              <span className="text-xs font-semibold text-white">{g.label}</span>
+            </div>
+            <p className="mt-1 text-[11px] font-mono text-electric">{g.skills.length} skills</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="space-y-2">
+        {groups.map((g) => (
+          <div key={g.kind} className="rounded-xl border border-white/10 bg-black/20">
+            <button
+              type="button"
+              onClick={() => toggleGroup(g.kind)}
+              className="flex w-full items-center gap-2 px-4 py-3 text-left hover:bg-white/5"
+            >
+              {expandedGroups.has(g.kind) ? (
+                <ChevronDown className="h-4 w-4 text-slate" />
+              ) : (
+                <ChevronRight className="h-4 w-4 text-slate" />
+              )}
+              {kindIcon(g.kind)}
+              <span className="flex-1 text-sm font-semibold text-white">{g.label}</span>
+              <span className="text-xs font-mono text-slate">{g.skills.length}</span>
+            </button>
+            {expandedGroups.has(g.kind) && (
+              <div className="space-y-1 px-4 pb-3">
+                {g.skills.map((sk) => (
+                  <div key={sk.label} className="rounded-lg border border-white/5 bg-black/30">
+                    <button
+                      type="button"
+                      onClick={() => toggleSkill(sk.label)}
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-white/5"
+                    >
+                      {expandedSkills.has(sk.label) ? (
+                        <ChevronDown className="h-3 w-3 text-slate" />
+                      ) : (
+                        <ChevronRight className="h-3 w-3 text-slate" />
+                      )}
+                      <span className="flex-1 truncate text-xs text-white">{sk.label}</span>
+                    </button>
+                    {expandedSkills.has(sk.label) && (
+                      <div className="border-t border-white/5 px-3 py-2 text-[11px] text-slate">
+                        <p>{sk.description}</p>
+                        {sk.source && (
+                          <p className="mt-1 text-[10px] text-violet-300/70">Sumber: {sk.source}</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
       </div>
     </div>
   );

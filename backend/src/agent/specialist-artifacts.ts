@@ -176,3 +176,107 @@ export function attachSpecialistArtifacts(
   profile.skillMd = buildSpecialistSkillMd(profile, missionPrompt);
   profile.readmeMd = buildSpecialistReadme(profile, missionPrompt);
 }
+
+/** Build Central Agent's own SKILL.md by aggregating ALL skills from squad + sub-agents. */
+export function buildCentralAgentSkillMd(
+  squad: SpecialistAgentProfile[],
+  missionPrompt: string
+): string {
+  const allSkills: SpecialistSkill[] = [];
+  const seen = new Set<string>();
+
+  for (const agent of squad) {
+    for (const sk of agent.skills) {
+      if (!seen.has(sk.id)) {
+        seen.add(sk.id);
+        allSkills.push(sk);
+      }
+    }
+    for (const sub of agent.subAgents ?? []) {
+      const subLabel = `sub-${sub.role}-${sub.focus.slice(0, 30)}`;
+      const subId = subLabel.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+      if (!seen.has(subId)) {
+        seen.add(subId);
+        allSkills.push({
+          id: subId,
+          label: `${sub.role} sub-agent`,
+          description: sub.focus,
+          kind: "orchestrate"
+        });
+      }
+    }
+  }
+
+  const byKind: Record<string, SpecialistSkill[]> = {};
+  for (const sk of allSkills) {
+    (byKind[sk.kind] ??= []).push(sk);
+  }
+
+  const kindLabel: Record<string, string> = {
+    touch: "Riset dan Ekstraksi",
+    generate: "Produksi dan Generate",
+    orchestrate: "Orkestrasi dan Koordinasi",
+    other: "Lainnya"
+  };
+
+  const sections: string[] = [
+    "SKILL Central Agent (Recursive Agent)",
+    "",
+    `Total ${allSkills.length} skills dari ${squad.length} specialist`,
+    "",
+    "Misi",
+    stripMarkdownToPlainText(missionPrompt.trim().slice(0, 1500) || "(kosong)"),
+    "",
+    "Squad specialists",
+    ...squad.map((s) => `${s.name}. ${s.role}. ${s.purpose}. Lane ${s.canvasLane ?? "general"}. ${s.skills.length} skills.`),
+    ""
+  ];
+
+  for (const [kind, label] of Object.entries(kindLabel)) {
+    const items = byKind[kind];
+    if (!items?.length) continue;
+    sections.push(`${label} (${items.length})`);
+    for (const sk of items) {
+      sections.push(`${sk.label}. ${sk.description}`);
+    }
+    sections.push("");
+  }
+
+  sections.push(
+    "Central Agent mengumpulkan semua skill di atas dari seluruh squad dan sub-agent.",
+    "Setiap skill di-extract real-time dari web (GitHub SKILL.md, docs, npm, awesome-lists)."
+  );
+
+  return stripMarkdownToPlainText(sections.join("\n"));
+}
+
+/** Build Central Agent's own README.md summarizing the full mission and all agents produced. */
+export function buildCentralAgentReadme(
+  squad: SpecialistAgentProfile[],
+  missionPrompt: string,
+  motherBrief: string
+): string {
+  const sections: string[] = [
+    "Central Agent (Recursive Agent)",
+    "",
+    "README Central Agent",
+    "",
+    "Misi",
+    stripMarkdownToPlainText(missionPrompt.trim().slice(0, 2000) || "(kosong)"),
+    "",
+    "Central Brief",
+    stripMarkdownToPlainText(motherBrief.trim().slice(0, 1000) || "(kosong)"),
+    "",
+    `Squad (${squad.length} specialist)`,
+    ...squad.map((s) => {
+      const skillCount = s.skills.length;
+      const subCount = s.subAgents?.length ?? 0;
+      return `${s.name}. Role ${s.role}. ${s.purpose}. ${skillCount} skills. ${subCount} sub-agents.`;
+    }),
+    "",
+    "Semua specialist di atas di-produce oleh Central Agent dengan skill yang di-extract real-time dari web.",
+    "Lihat tab SKILL untuk daftar lengkap semua skill yang dimiliki Central Agent."
+  ];
+
+  return stripMarkdownToPlainText(sections.join("\n"));
+}

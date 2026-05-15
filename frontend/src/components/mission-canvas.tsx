@@ -8,8 +8,6 @@ import type { MissionProgressEvent } from "@/lib/types";
 import {
   Background,
   BackgroundVariant,
-  Controls,
-  MiniMap,
   ReactFlow,
   ReactFlowProvider,
   addEdge,
@@ -25,6 +23,7 @@ import "@xyflow/react/dist/style.css";
 import {
   ActionNode,
   BranchNode,
+  KnowledgeNode,
   MotherAgentNode,
   SpecialistAgentNode,
   SubAgentNode,
@@ -42,7 +41,8 @@ const nodeTypes = {
   specialist: SpecialistAgentNode,
   subAgent: SubAgentNode,
   branch: BranchNode,
-  action: ActionNode
+  action: ActionNode,
+  knowledge: KnowledgeNode
 } satisfies NodeTypes;
 
 function agentNodeId(agent: SpecialistAgentProfile, index: number): string {
@@ -130,10 +130,15 @@ const STATIC_BASE_NODES: Node[] = [
     data: { label: "Tool-heavy path", sub: "invoke MCP / HTTP tools" }
   },
   {
-    id: "sandbox",
-    type: "action",
-    position: { x: 820, y: 220 },
-    data: { label: "Sandbox path", sub: "E2B code / command runner" }
+    id: "knowledge",
+    type: "knowledge",
+    position: { x: 820, y: 200 },
+    data: {
+      label: "Knowledge Sources",
+      sources: ["GitHub SKILL.md", "Tavily Search", "Tavily Extract", "Awesome Lists", "NPM Docs"],
+      skillCount: 0,
+      docCount: 0
+    }
   }
 ];
 
@@ -155,12 +160,12 @@ const STATIC_BASE_EDGES: Edge[] = [
     style: { stroke: "#4ADE80" }
   },
   {
-    id: "e-branch-sandbox",
+    id: "e-branch-knowledge",
     source: "branch",
-    target: "sandbox",
+    target: "knowledge",
     sourceHandle: "no",
-    label: "execute",
-    style: { stroke: "#38BDF8" }
+    label: "knowledge",
+    style: { stroke: "#2DD4BF" }
   }
 ];
 
@@ -185,6 +190,7 @@ type FlowSurfaceProps = {
   motherThinking?: boolean;
   motherProgressCurrent?: MissionProgressEvent | null;
   motherProgressHistory?: MissionProgressEvent[];
+  knowledgeStats?: { skillCount: number; docCount: number } | null;
 };
 
 function FlowSurface({
@@ -195,7 +201,8 @@ function FlowSurface({
   onOpenMotherDashboard,
   motherThinking,
   motherProgressCurrent,
-  motherProgressHistory
+  motherProgressHistory,
+  knowledgeStats
 }: FlowSurfaceProps) {
   const savedStaticRef = useRef(loadAllCanvasPositions());
   const initialNodes = useMemo(() => {
@@ -338,6 +345,13 @@ function FlowSurface({
             thinkingHistory: motherProgressHistory
           };
         }
+        if (node.id === "knowledge" && knowledgeStats) {
+          data = {
+            ...baseData,
+            skillCount: knowledgeStats.skillCount,
+            docCount: knowledgeStats.docCount
+          };
+        }
         return {
           ...node,
           className: ring,
@@ -402,7 +416,8 @@ function FlowSurface({
     motherThinking,
     motherProgressCurrent,
     motherProgressHistory,
-    activeMissionId
+    activeMissionId,
+    knowledgeStats
   ]);
 
   const defaultEdgeOptions = useMemo(
@@ -432,12 +447,6 @@ function FlowSurface({
       className="h-full text-slate-100"
     >
       <Background gap={18} size={1.2} variant={BackgroundVariant.Dots} color="#1f2a3d" />
-      <MiniMap
-        className="!bg-slate-950/80 !border !border-white/10"
-        nodeStrokeColor="#64FFDA"
-        maskColor="rgba(2, 12, 27, 0.65)"
-      />
-      <Controls className="!bg-slate-950/90 !border !border-white/10 !shadow-lg" />
     </ReactFlow>
   );
 }
@@ -451,6 +460,7 @@ type MissionCanvasProps = {
   motherProgressCurrent?: MissionProgressEvent | null;
   motherProgressHistory?: MissionProgressEvent[];
   activeMissionId?: string | null;
+  knowledgeStats?: { skillCount: number; docCount: number } | null;
 };
 
 export function MissionCanvas({
@@ -461,7 +471,8 @@ export function MissionCanvas({
   onOpenMotherDashboard,
   motherThinking,
   motherProgressCurrent,
-  motherProgressHistory
+  motherProgressHistory,
+  knowledgeStats
 }: MissionCanvasProps) {
   return (
     <section className="flex h-full min-h-[min(56vh,560px)] flex-1 flex-col overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-b from-[#050f1f] via-[#061222] to-[#030914] shadow-inner shadow-black/40">
@@ -491,6 +502,7 @@ export function MissionCanvas({
             motherProgressCurrent={motherProgressCurrent}
             motherProgressHistory={motherProgressHistory}
             activeMissionId={activeMissionId}
+            knowledgeStats={knowledgeStats}
           />
         </ReactFlowProvider>
       </div>

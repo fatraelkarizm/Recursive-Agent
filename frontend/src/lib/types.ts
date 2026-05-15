@@ -94,6 +94,8 @@ export type MissionResponse = {
   motherBrief?: string;
   squadSource?: "mother-llm" | "fallback-rules";
   motherReview?: string;
+  centralSkillMd?: string;
+  centralReadmeMd?: string;
   status: "created" | "running" | "completed" | "failed";
   events?: string[];
 };

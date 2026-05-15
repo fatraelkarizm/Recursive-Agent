@@ -22,19 +22,54 @@ import {
   BranchNode,
   MotherAgentNode,
   SpecialistAgentNode,
+  SubAgentNode,
   TriggerNode
 } from "@/components/workflow-nodes";
 import type { SpecialistAgentProfile } from "@/lib/types";
 
-const SPECIALIST_NODE_ID = "specialist-generated";
+const SUB_NODE_PREFIX = "sub-node-";
+const SP_PREFIX = "specialist-sp-";
 
 const nodeTypes = {
   trigger: TriggerNode,
   mother: MotherAgentNode,
   specialist: SpecialistAgentNode,
+  subAgent: SubAgentNode,
   branch: BranchNode,
   action: ActionNode
 } satisfies NodeTypes;
+
+function layoutSpecialistPositions(n: number): { x: number; y: number }[] {
+  if (n <= 1) return [{ x: 248, y: 318 }];
+  const w = 232;
+  const gap = 36;
+  const total = n * w + (n - 1) * gap;
+  const cx = 360;
+  const x0 = cx - total / 2;
+  return Array.from({ length: n }, (_, i) => ({
+    x: Math.round(x0 + i * (w + gap)),
+    y: 300
+  }));
+}
+
+function inferSubAgentKind(role: string): "scout" | "worker" | "reviewer" {
+  const r = role.toLowerCase();
+  if (r.includes("scout")) return "scout";
+  if (r.includes("reviewer")) return "reviewer";
+  return "worker";
+}
+
+function layoutSubAgentPositions(count: number, leadCenterX: number): { x: number; y: number }[] {
+  const y = 468;
+  const card = 188;
+  const gap = 22;
+  const total = count * card + (count - 1) * gap;
+  let x0 = leadCenterX - total / 2;
+  return Array.from({ length: count }, (_, i) => ({
+    x: Math.round(x0 + i * (card + gap)),
+    y
+  }));
+}
 
 const STATIC_BASE_NODES: Node[] = [
   {
@@ -110,10 +145,10 @@ function isPlaceholderProfile(profile: SpecialistAgentProfile): boolean {
 
 type FlowSurfaceProps = {
   status: string;
-  profile: SpecialistAgentProfile;
+  specialists: SpecialistAgentProfile[];
 };
 
-function FlowSurface({ status, profile }: FlowSurfaceProps) {
+function FlowSurface({ status, specialists }: FlowSurfaceProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState(cloneNodes(STATIC_BASE_NODES));
   const [edges, setEdges, onEdgesChange] = useEdgesState(cloneEdges(STATIC_BASE_EDGES));
 
@@ -123,7 +158,8 @@ function FlowSurface({ status, profile }: FlowSurfaceProps) {
   );
 
   useEffect(() => {
-    const pending = isPlaceholderProfile(profile);
+    const lead = specialists[0];
+    const pending = isPlaceholderProfile(lead);
 
     let ring = "";
     if (status === "running") ring = "ring-2 ring-amber-300/60";
@@ -133,22 +169,43 @@ function FlowSurface({ status, profile }: FlowSurfaceProps) {
     const pulse = status === "running";
 
     setNodes(() => {
-      const base = cloneNodes(STATIC_BASE_NODES).filter((n) => n.id !== SPECIALIST_NODE_ID);
+      const base = cloneNodes(STATIC_BASE_NODES).filter(
+        (n) => !n.id.startsWith(SP_PREFIX) && !n.id.startsWith(SUB_NODE_PREFIX)
+      );
       let list: Node[] = base;
 
       if (!pending) {
-        const skillsPreview = profile.skills?.map((s) => s.label).join(" · ") ?? "";
-        const specialist: Node = {
-          id: SPECIALIST_NODE_ID,
+        const positions = layoutSpecialistPositions(specialists.length);
+        const specNodes: Node[] = specialists.map((p, i) => ({
+          id: `${SP_PREFIX}${i}`,
           type: "specialist",
-          position: { x: 248, y: 318 },
+          position: positions[i] ?? { x: 248, y: 318 },
           data: {
-            name: profile.name,
-            role: profile.role,
-            skillsPreview
+            name: p.name,
+            role: p.role,
+            skillsPreview: p.skills?.map((s) => s.label).join(" · ") ?? "",
+            lane: p.canvasLane ?? "general"
           }
-        };
-        list = [...base, specialist];
+        }));
+        list = [...base, ...specNodes];
+
+        const subs = lead.subAgents ?? [];
+        if (subs.length > 0) {
+          const leadPos = positions[0] ?? { x: 248, y: 318 };
+          const leadCenterX = leadPos.x + 110;
+          const positionsSubs = layoutSubAgentPositions(subs.length, leadCenterX);
+          const subNodes: Node[] = subs.map((s, i) => ({
+            id: `${SUB_NODE_PREFIX}${s.id}`,
+            type: "subAgent",
+            position: positionsSubs[i] ?? { x: 80 + i * 210, y: 468 },
+            data: {
+              role: s.role,
+              focus: s.focus,
+              kind: inferSubAgentKind(s.role)
+            }
+          }));
+          list = [...list, ...subNodes];
+        }
       }
 
       return list.map((node) => ({
@@ -159,22 +216,35 @@ function FlowSurface({ status, profile }: FlowSurfaceProps) {
     });
 
     setEdges(() => {
-      const base = cloneEdges(STATIC_BASE_EDGES).filter((e) => e.id !== "e-mother-specialist");
+      const base = cloneEdges(STATIC_BASE_EDGES).filter(
+        (e) => !e.id.startsWith("e-mother-spec-") && !e.id.startsWith("e-spec-sub-")
+      );
       if (pending) return base;
-      return [
-        ...base,
-        {
-          id: "e-mother-specialist",
-          source: "mother",
-          target: SPECIALIST_NODE_ID,
-          sourceHandle: "to-specialist",
-          targetHandle: "from-mother",
-          animated: true,
-          style: { stroke: "#a78bfa" }
-        }
-      ];
+      const motherToSpecs: Edge[] = specialists.map((_, i) => ({
+        id: `e-mother-spec-${i}`,
+        source: "mother",
+        target: `${SP_PREFIX}${i}`,
+        sourceHandle: "to-specialist",
+        targetHandle: "from-mother",
+        animated: true,
+        style: { stroke: "#a78bfa" }
+      }));
+      const subs = lead.subAgents ?? [];
+      if (subs.length === 0) {
+        return [...base, ...motherToSpecs];
+      }
+      const subEdges: Edge[] = subs.map((s) => ({
+        id: `e-spec-sub-${s.id}`,
+        source: `${SP_PREFIX}0`,
+        target: `${SUB_NODE_PREFIX}${s.id}`,
+        sourceHandle: "to-subagents",
+        targetHandle: "from-specialist",
+        animated: true,
+        style: { stroke: "#e879f9", strokeWidth: 1.2 }
+      }));
+      return [...base, ...motherToSpecs, ...subEdges];
     });
-  }, [profile, status, setNodes, setEdges]);
+  }, [specialists, status, setNodes, setEdges]);
 
   const defaultEdgeOptions = useMemo(
     () => ({
@@ -213,10 +283,10 @@ function FlowSurface({ status, profile }: FlowSurfaceProps) {
 
 type MissionCanvasProps = {
   status: string;
-  profile: SpecialistAgentProfile;
+  specialists: SpecialistAgentProfile[];
 };
 
-export function MissionCanvas({ status, profile }: MissionCanvasProps) {
+export function MissionCanvas({ status, specialists }: MissionCanvasProps) {
   return (
     <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-white/10 bg-gradient-to-b from-[#050f1f] to-[#030914]">
       <header className="flex items-center justify-between border-b border-white/10 px-4 py-3">
@@ -230,7 +300,7 @@ export function MissionCanvas({ status, profile }: MissionCanvasProps) {
       </header>
       <div className="relative min-h-[420px] flex-1">
         <ReactFlowProvider>
-          <FlowSurface status={status} profile={profile} />
+          <FlowSurface status={status} specialists={specialists} />
         </ReactFlowProvider>
       </div>
     </section>

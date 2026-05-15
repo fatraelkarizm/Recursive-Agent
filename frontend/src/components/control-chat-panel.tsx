@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { nanoid } from "nanoid";
 import { Send } from "lucide-react";
 import { SpecialistAgentPanel } from "@/components/specialist-agent-panel";
-import type { ChatMessage } from "@/lib/types";
-import type { SpecialistAgentProfile } from "@/lib/types";
+import type { ChatMessage, FleetOrchestrationSummary, SpecialistAgentProfile } from "@/lib/types";
 
 type ControlChatPanelProps = {
   messages: ChatMessage[];
@@ -14,9 +13,17 @@ type ControlChatPanelProps = {
   onPromptChange: (value: string) => void;
   status: string;
   profile: SpecialistAgentProfile;
+  specialists: SpecialistAgentProfile[];
+  fleetSummary: FleetOrchestrationSummary | null;
   onRunMission: () => void;
   busy: boolean;
 };
+
+function squadTabLabel(s: SpecialistAgentProfile, index: number): string {
+  if (s.canvasLane === "frontend") return "Frontend";
+  if (s.canvasLane === "backend") return "Backend";
+  return index === 0 ? "Specialist" : `Agent ${index + 1}`;
+}
 
 export function ControlChatPanel({
   messages,
@@ -25,10 +32,15 @@ export function ControlChatPanel({
   onPromptChange,
   status,
   profile,
+  specialists,
+  fleetSummary,
   onRunMission,
   busy
 }: ControlChatPanelProps) {
   const listRef = useRef<HTMLDivElement | null>(null);
+  const [specialistTab, setSpecialistTab] = useState(0);
+  const activeTab = specialistTab < specialists.length ? specialistTab : 0;
+  const shownProfile = specialists[activeTab] ?? profile;
 
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
@@ -54,7 +66,10 @@ export function ControlChatPanel({
       <div className="border-b border-white/10 px-4 py-4">
         <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-slate">Control</p>
         <h2 className="text-base font-semibold text-white">Mission chat</h2>
-        <p className="mt-1 text-xs text-slate">Steer the mother agent, launch a mission, and inspect the generated specialist.</p>
+        <p className="mt-1 text-xs text-slate">
+          Steer the mother agent, launch a mission, and inspect generated specialists (squad tabs appear for
+          web/CMS-style missions).
+        </p>
       </div>
 
       <div ref={listRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
@@ -105,7 +120,46 @@ export function ControlChatPanel({
       </div>
 
       <div className="border-t border-white/10 px-4 py-4">
-        <SpecialistAgentPanel profile={profile} variant="embedded" />
+        {specialists.length > 1 ? (
+          <div className="mb-3 flex flex-wrap gap-1.5">
+            {specialists.map((s, i) => (
+              <button
+                key={`${s.name}-${i}`}
+                type="button"
+                onClick={() => setSpecialistTab(i)}
+                className={`rounded-lg border px-2.5 py-1 text-[11px] font-medium transition ${
+                  activeTab === i
+                    ? "border-electric/60 bg-electric/15 text-electric"
+                    : "border-white/10 bg-white/5 text-slate hover:border-white/20"
+                }`}
+              >
+                {squadTabLabel(s, i)}
+              </button>
+            ))}
+          </div>
+        ) : null}
+        <SpecialistAgentPanel profile={shownProfile} variant="embedded" />
+        {fleetSummary?.mergedReport ? (
+          <div className="mt-4 border-t border-white/10 pt-3">
+            <div className="mb-1 flex items-center justify-between gap-2">
+              <span className="text-[11px] font-semibold text-electric">Mother — merged fleet report</span>
+              <button
+                type="button"
+                className="rounded border border-white/15 bg-white/5 px-2 py-0.5 text-[10px] text-electric hover:bg-white/10"
+                onClick={() => void navigator.clipboard.writeText(fleetSummary.mergedReport)}
+              >
+                Copy
+              </button>
+            </div>
+            <p className="mb-2 text-[10px] text-slate">
+              Sub-agents ran in order ({fleetSummary.subAgentRuns.length}):{" "}
+              {fleetSummary.subAgentRuns.map((r) => `${r.role}(${r.source})`).join(" → ")}
+            </p>
+            <pre className="max-h-56 overflow-auto whitespace-pre-wrap rounded border border-white/10 bg-black/40 p-2 font-mono text-[10px] leading-relaxed text-slate-100">
+              {fleetSummary.mergedReport}
+            </pre>
+          </div>
+        ) : null}
       </div>
     </aside>
   );

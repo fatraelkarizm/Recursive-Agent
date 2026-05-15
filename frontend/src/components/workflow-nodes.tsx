@@ -2,7 +2,7 @@
 
 import { memo } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import { Bot, GitBranch, Zap } from "lucide-react";
+import { Bot, ClipboardCheck, Database, GitBranch, LayoutTemplate, Search, Wrench, Zap } from "lucide-react";
 
 type LabelData = { label: string };
 type ActionData = { label: string; sub: string };
@@ -55,26 +55,102 @@ type SpecialistNodeData = {
   name: string;
   role: string;
   skillsPreview: string;
+  lane?: "frontend" | "backend" | "general";
 };
 
+function specialistShellClass(lane: SpecialistNodeData["lane"]) {
+  if (lane === "frontend") return "border-cyan-400/85 bg-[#061a24]";
+  if (lane === "backend") return "border-amber-400/80 bg-[#1a1006]";
+  return "border-violet-400/80 bg-[#14082a]";
+}
+
+function specialistTitleClass(lane: SpecialistNodeData["lane"]) {
+  if (lane === "frontend") return "text-cyan-100";
+  if (lane === "backend") return "text-amber-100";
+  return "text-violet-200";
+}
+
+function SpecialistLaneIcon({ lane }: { lane: SpecialistNodeData["lane"] }) {
+  const cls = "h-4 w-4 shrink-0";
+  if (lane === "frontend") return <LayoutTemplate className={`${cls} text-cyan-300`} aria-hidden />;
+  if (lane === "backend") return <Database className={`${cls} text-amber-300`} aria-hidden />;
+  return <Bot className={`${cls} text-violet-300`} aria-hidden />;
+}
+
 export const SpecialistAgentNode = memo(function SpecialistAgentNode({ data }: NodeProps) {
-  const { name, role, skillsPreview } = data as SpecialistNodeData;
+  const { name, role, skillsPreview, lane } = data as SpecialistNodeData;
+  const laneResolved = lane ?? "general";
   return (
-    <div className="min-w-[220px] max-w-[280px] rounded-xl border-2 border-violet-400/80 bg-[#14082a] px-3 py-3 shadow-lg">
+    <div className={`min-w-[220px] max-w-[280px] rounded-xl border-2 px-3 py-3 shadow-lg ${specialistShellClass(laneResolved)}`}>
       <Handle
         type="target"
         position={Position.Top}
         id="from-mother"
         className="!h-2 !w-2 !border-0 !bg-violet-300"
       />
-      <div className="flex items-center gap-2 border-b border-white/10 pb-2 text-xs font-semibold text-violet-200">
-        <Bot className="h-4 w-4 text-violet-300" aria-hidden />
+      <div
+        className={`flex items-center gap-2 border-b border-white/10 pb-2 text-xs font-semibold ${specialistTitleClass(laneResolved)}`}
+      >
+        <SpecialistLaneIcon lane={laneResolved} />
         <span className="truncate">{name}</span>
       </div>
       <p className="mt-1 text-[10px] uppercase tracking-wide text-slate">Specialist agent</p>
       <p className="mt-0.5 font-mono text-[11px] text-white/90">{role}</p>
       <p className="mt-2 line-clamp-3 text-[10px] leading-snug text-slate">{skillsPreview || "Skills: —"}</p>
       <Handle type="source" position={Position.Right} id="specialist-out" className="!h-2 !w-2 !border-0 !bg-violet-400" />
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        id="to-subagents"
+        className="!h-2 !w-2 !border-0 !bg-fuchsia-400"
+        style={{ left: "50%" }}
+      />
+    </div>
+  );
+});
+
+type SubAgentNodeData = {
+  role: string;
+  focus: string;
+  kind: "scout" | "worker" | "reviewer";
+};
+
+function subAgentIcon(kind: SubAgentNodeData["kind"]) {
+  const cls = "h-4 w-4 shrink-0";
+  if (kind === "scout") return <Search className={`${cls} text-cyan-300`} aria-hidden />;
+  if (kind === "worker") return <Wrench className={`${cls} text-amber-300`} aria-hidden />;
+  return <ClipboardCheck className={`${cls} text-emerald-300`} aria-hidden />;
+}
+
+function subAgentBorder(kind: SubAgentNodeData["kind"]) {
+  if (kind === "scout") return "border-cyan-500/70 bg-[#061a1f]";
+  if (kind === "worker") return "border-amber-500/65 bg-[#1a1208]";
+  return "border-emerald-500/65 bg-[#061a14]";
+}
+
+export const SubAgentNode = memo(function SubAgentNode({ data }: NodeProps) {
+  const { role, focus, kind } = data as SubAgentNodeData;
+  const label =
+    kind === "scout" ? "Scout" : kind === "worker" ? "Worker" : "Reviewer";
+
+  return (
+    <div
+      className={`min-w-[176px] max-w-[200px] rounded-xl border-2 px-2.5 py-2.5 shadow-lg ${subAgentBorder(kind)}`}
+    >
+      <Handle
+        type="target"
+        position={Position.Top}
+        id="from-specialist"
+        className="!h-2 !w-2 !border-0 !bg-fuchsia-300"
+      />
+      <div className="flex items-start gap-2 border-b border-white/10 pb-1.5">
+        {subAgentIcon(kind)}
+        <div className="min-w-0 flex-1">
+          <p className="text-[9px] font-semibold uppercase tracking-wide text-slate">{label}</p>
+          <p className="truncate font-mono text-[10px] font-medium text-white/90">{role}</p>
+        </div>
+      </div>
+      <p className="mt-1.5 line-clamp-4 text-[9px] leading-snug text-slate">{focus}</p>
     </div>
   );
 });

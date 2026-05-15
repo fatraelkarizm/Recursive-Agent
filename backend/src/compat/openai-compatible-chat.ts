@@ -29,7 +29,7 @@ export async function openAiCompatibleChatCompletion(params: {
 }): Promise<string> {
   const base = process.env.OPENAI_COMPAT_BASE_URL?.trim();
   const apiKey = (process.env.OPENAI_COMPAT_API_KEY ?? process.env.DEEPSEEK_API_KEY)?.trim();
-  const model = process.env.OPENAI_COMPAT_MODEL?.trim() || "gpt-4o-mini";
+  const model = process.env.OPENAI_COMPAT_MODEL?.trim() || "deepseek/deepseek-v4-pro";
 
   if (!base || !apiKey) {
     throw new Error("OPENAI_COMPAT_BASE_URL and a bearer key (OPENAI_COMPAT_API_KEY or DEEPSEEK_API_KEY) are required");

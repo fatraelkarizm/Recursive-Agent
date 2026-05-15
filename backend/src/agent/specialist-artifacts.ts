@@ -50,6 +50,36 @@ export function buildSpecialistSkills(
     });
   }
 
+  if (role.includes("nextjs") || role.includes("frontend")) {
+    skills.push({
+      id: "nextjs-app-router",
+      label: "Next.js App Router",
+      description: "Struktur route, layout, server/client components untuk halaman artikel/CMS.",
+      kind: "generate"
+    });
+    skills.push({
+      id: "html-css-wireframe",
+      label: "HTML/CSS wireframe",
+      description: "Markup & token warna dasar sebelum komponen React final.",
+      kind: "generate"
+    });
+  }
+
+  if (role.includes("backend") || role.includes("api-")) {
+    skills.push({
+      id: "rest-contract",
+      label: "Kontrak REST",
+      description: "Endpoint, status code, dan payload JSON yang konsisten.",
+      kind: "generate"
+    });
+    skills.push({
+      id: "sql-schema-sketch",
+      label: "Skema data",
+      description: "Tabel relasional & indeks untuk artikel, penulis, status publikasi.",
+      kind: "generate"
+    });
+  }
+
   return skills;
 }
 

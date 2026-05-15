@@ -8,7 +8,7 @@ import { TerminalDrawer } from "@/components/terminal-drawer";
 import { VitalsPanel } from "@/components/vitals-panel";
 import { WorkspaceRail, type WorkspaceRecipe } from "@/components/workspace-rail";
 import { createMission } from "@/lib/api";
-import type { ChatMessage, SpecialistAgentProfile } from "@/lib/types";
+import type { ChatMessage, FleetOrchestrationSummary, SpecialistAgentProfile } from "@/lib/types";
 
 const MissionCanvas = dynamic(
   () => import("@/components/mission-canvas").then((mod) => ({ default: mod.MissionCanvas })),
@@ -34,16 +34,20 @@ const initialProfile: SpecialistAgentProfile = {
   specializations: ["core-mission"],
   orchestrationMode: "local",
   skills: [],
-  readmeMd: ""
+  readmeMd: "",
+  canvasLane: "general"
 };
 
 export default function Page() {
   const [prompt, setPrompt] = useState("");
   const [status, setStatus] = useState("idle");
   const [profile, setProfile] = useState<SpecialistAgentProfile>(initialProfile);
+  /** Latest squad for canvas + tabs (defaults to single pending profile before first run). */
+  const [squad, setSquad] = useState<SpecialistAgentProfile[]>([initialProfile]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [selectedRecipeId, setSelectedRecipeId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [fleetSummary, setFleetSummary] = useState<FleetOrchestrationSummary | null>(null);
 
   function handleSelectRecipe(recipe: WorkspaceRecipe) {
     setSelectedRecipeId(recipe.id);
@@ -57,6 +61,8 @@ export default function Page() {
     try {
       const result = await createMission({ prompt });
       setProfile(result.profile);
+      setSquad(result.specialists ?? [result.profile]);
+      setFleetSummary(result.fleetSummary ?? null);
       setStatus(result.status);
       const lines = [
         `Mission ${result.missionId} → ${result.status}`,
@@ -74,6 +80,7 @@ export default function Page() {
     } catch (error) {
       console.error(error);
       setStatus("failed");
+      setFleetSummary(null);
       setMessages((current) => [
         ...current,
         {
@@ -95,7 +102,7 @@ export default function Page() {
         <WorkspaceRail selectedId={selectedRecipeId} onSelectRecipe={handleSelectRecipe} />
 
         <section className="flex min-w-0 flex-1 flex-col gap-3 p-4">
-          <MissionCanvas status={status} profile={profile} />
+          <MissionCanvas status={status} specialists={squad} />
           <div className="grid shrink-0 grid-cols-1 gap-3 lg:grid-cols-2">
             <VitalsPanel status={status} />
             <TerminalDrawer events={messages.filter((m) => m.role === "assistant").slice(-1)} />
@@ -109,6 +116,8 @@ export default function Page() {
           onPromptChange={setPrompt}
           status={status}
           profile={profile}
+          specialists={squad}
+          fleetSummary={fleetSummary}
           onRunMission={handleRunMission}
           busy={busy}
         />

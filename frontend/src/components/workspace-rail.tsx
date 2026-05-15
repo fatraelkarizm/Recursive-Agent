@@ -35,6 +35,13 @@ const RECIPES: WorkspaceRecipe[] = [
     prompt: "Build a sales specialist that extracts objections and strengths from pasted customer reviews."
   },
   {
+    id: "cms-web-squad",
+    title: "Article CMS squad",
+    subtitle: "Frontend + backend nodes + HTML/Next README",
+    prompt:
+      "Aku mau buat web article CMS dengan Next.js: editor artikel, daftar publikasi, dan API untuk simpan draft. Pecahkan jadi peran frontend dan backend."
+  },
+  {
     id: "fleet-browser",
     title: "Fleet + browser",
     subtitle: "OpenClaw orchestration + headless browser",
@@ -48,7 +55,7 @@ const INTEGRATIONS = [
   { name: "OpenClaw CLI", detail: "openclaw agent --json (see docs/OPENCLAW_INTEGRATION.md)", tone: "text-electric" },
   { name: "Tavily", detail: "Extract + Search (TAVILY_API_KEY)", tone: "text-electric" },
   { name: "MCP (hosted)", detail: "Wire in SETUP.md", tone: "text-slate" },
-  { name: "E2B sandbox", detail: "backend/src/sandbox", tone: "text-slate" },
+  { name: "Lovable (optional)", detail: "LOVABLE_API_KEY — README mentions API docs", tone: "text-slate" },
   { name: "Env keys", detail: ".env in frontend/backend", tone: "text-slate" }
 ];
 

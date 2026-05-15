@@ -25,6 +25,7 @@ export type SpecialistAgentProfile = {
   subAgents?: SubAgentDescriptor[];
   skills: SpecialistSkill[];
   readmeMd: string;
+  canvasLane?: "frontend" | "backend" | "general";
 };
 
 export type ChatMessage = {
@@ -38,9 +39,24 @@ export type MissionRequest = {
   prompt: string;
 };
 
+export type SubAgentRunResult = {
+  id: string;
+  role: string;
+  focus: string;
+  output: string;
+  source: "openai-compat" | "openclaw" | "skipped";
+};
+
+export type FleetOrchestrationSummary = {
+  mergedReport: string;
+  subAgentRuns: SubAgentRunResult[];
+};
+
 export type MissionResponse = {
   missionId: string;
   profile: SpecialistAgentProfile;
+  specialists?: SpecialistAgentProfile[];
+  fleetSummary?: FleetOrchestrationSummary;
   status: "created" | "running" | "completed" | "failed";
   events?: string[];
 };

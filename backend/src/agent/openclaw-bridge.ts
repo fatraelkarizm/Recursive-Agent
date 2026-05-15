@@ -38,37 +38,23 @@ function buildOrchestrationMessage(
   ].join("\n");
 }
 
-/**
- * Delegates one orchestration turn to the OpenClaw CLI (embedded/local by default).
- * Requires `openclaw` on PATH and a working local plugin setup for `--local`.
- */
-export async function orchestrateViaOpenClaw(params: {
-  missionId: string;
-  motherPrompt: string;
-  profile: SpecialistAgentProfile;
-}): Promise<string> {
+export async function runOpenClawAgentMessage(params: { message: string; sessionId: string }): Promise<string> {
   if (process.env.OPENCLAW_ORCHESTRATION === "0") {
-    return "OpenClaw orchestration skipped (OPENCLAW_ORCHESTRATION=0).";
+    return "openclaw: skipped (OPENCLAW_ORCHESTRATION=0).";
   }
 
   const bin = process.env.OPENCLAW_BIN ?? "openclaw";
   const agentId = process.env.OPENCLAW_ORCHESTRATOR_AGENT ?? "main";
-  const sessionId =
-    process.env.OPENCLAW_SESSION_PREFIX != null
-      ? `${process.env.OPENCLAW_SESSION_PREFIX}-${params.missionId}`
-      : `recursive-agent-${params.missionId}`;
-
-  const message = buildOrchestrationMessage(params.missionId, params.motherPrompt, params.profile);
   const useLocal = process.env.OPENCLAW_USE_LOCAL !== "0";
 
   const args = [
     "agent",
     "--session-id",
-    sessionId,
+    params.sessionId,
     "--agent",
     agentId,
     "--message",
-    message,
+    params.message,
     "--json"
   ];
   const model = process.env.OPENCLAW_MODEL?.trim();
@@ -100,6 +86,28 @@ export async function orchestrateViaOpenClaw(params: {
     const msg = err instanceof Error ? err.message : String(err);
     return `openclaw: CLI not available or run failed (${msg}). Install OpenClaw, ensure 'openclaw agent' works, and see docs/OPENCLAW_INTEGRATION.md.`;
   }
+}
+
+/**
+ * Delegates one orchestration turn to the OpenClaw CLI (embedded/local by default).
+ * Requires `openclaw` on PATH and a working local plugin setup for `--local`.
+ */
+export async function orchestrateViaOpenClaw(params: {
+  missionId: string;
+  motherPrompt: string;
+  profile: SpecialistAgentProfile;
+}): Promise<string> {
+  if (process.env.OPENCLAW_ORCHESTRATION === "0") {
+    return "OpenClaw orchestration skipped (OPENCLAW_ORCHESTRATION=0).";
+  }
+
+  const sessionId =
+    process.env.OPENCLAW_SESSION_PREFIX != null
+      ? `${process.env.OPENCLAW_SESSION_PREFIX}-${params.missionId}`
+      : `recursive-agent-${params.missionId}`;
+
+  const message = buildOrchestrationMessage(params.missionId, params.motherPrompt, params.profile);
+  return runOpenClawAgentMessage({ message, sessionId });
 }
 
 export function shouldRunOpenClaw(profile: SpecialistAgentProfile): boolean {

@@ -10,6 +10,30 @@ export async function fetchRuntimeDiagnostics(): Promise<PublicRuntimeDiagnostic
   return response.json() as Promise<PublicRuntimeDiagnostics>;
 }
 
+export async function previewExtract(payload: { url: string; query?: string }): Promise<{
+  ok: boolean;
+  url?: string;
+  title?: string | null;
+  markdown?: string;
+  credits?: number;
+  error?: string;
+}> {
+  const response = await fetch(`${BACKEND_URL}/api/preview-extract`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  const data = (await response.json()) as {
+    ok: boolean;
+    url?: string;
+    title?: string | null;
+    markdown?: string;
+    credits?: number;
+    error?: string;
+  };
+  return data;
+}
+
 export async function createMission(payload: MissionRequest): Promise<MissionResponse> {
   const response = await fetch(`${BACKEND_URL}/api/missions`, {
     method: "POST",

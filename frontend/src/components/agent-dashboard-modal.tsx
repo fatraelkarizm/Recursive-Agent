@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Copy, ExternalLink, X } from "lucide-react";
 import { fetchRuntimeDiagnostics } from "@/lib/api";
 import { extractFirstHtmlFence } from "@/lib/extract-html-fence";
+import { extractHttpUrlsFromText } from "@/lib/extract-urls";
 import type {
   FleetOrchestrationSummary,
   PublicRuntimeDiagnostics,
@@ -57,35 +58,37 @@ export function AgentDashboardModal({
   const [runtimeLoading, setRuntimeLoading] = useState(false);
   const [runtimeErr, setRuntimeErr] = useState<string | null>(null);
 
+  const readmeMd = useMemo(() => {
+    if (!open || !target) return "";
+    return target.kind === "sub"
+      ? (specialists[0]?.readmeMd ?? "")
+      : (specialists[target.index]?.readmeMd ?? "");
+  }, [open, target, specialists]);
+
+  const previewHtml = useMemo(() => extractFirstHtmlFence(readmeMd), [readmeMd]);
+
+  const readmeUrls = useMemo(() => extractHttpUrlsFromText(readmeMd), [readmeMd]);
+
+  const previewBlobUrl = useMemo(() => {
+    if (!open || !previewHtml) return null;
+    return URL.createObjectURL(new Blob([previewHtml], { type: "text/html;charset=utf-8" }));
+  }, [open, previewHtml]);
+
   useEffect(() => {
-    if (!open) {
+    return () => {
+      if (previewBlobUrl) URL.revokeObjectURL(previewBlobUrl);
+    };
+  }, [previewBlobUrl]);
+
+  useEffect(() => {
+    if (!open) return;
+    const id = requestAnimationFrame(() => {
       setRuntime(null);
       setRuntimeErr(null);
       setRuntimeLoading(false);
-    }
+    });
+    return () => cancelAnimationFrame(id);
   }, [open]);
-
-  useEffect(() => {
-    if (!open || tab !== "config") return;
-    let cancelled = false;
-    setRuntimeLoading(true);
-    setRuntimeErr(null);
-    fetchRuntimeDiagnostics()
-      .then((d) => {
-        if (!cancelled) setRuntime(d);
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setRuntimeErr("Tidak bisa memuat config worker. Pastikan backend jalan dan NEXT_PUBLIC_BACKEND_URL benar.");
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setRuntimeLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [open, tab]);
 
   useEffect(() => {
     if (!open || !target) return;
@@ -94,10 +97,36 @@ export function AgentDashboardModal({
         ? (specialists[0]?.readmeMd ?? "")
         : (specialists[target.index]?.readmeMd ?? "");
     const html = extractFirstHtmlFence(readmeForDefault);
-    if (html) setTab("preview");
-    else if (readmeForDefault.trim().length > 0) setTab("readme");
-    else setTab("overview");
+    const next: TabId = html ? "preview" : readmeForDefault.trim().length > 0 ? "readme" : "overview";
+    const id = requestAnimationFrame(() => setTab(next));
+    return () => cancelAnimationFrame(id);
   }, [open, target, specialists]);
+
+  useEffect(() => {
+    if (!open || tab !== "config") return;
+    let cancelled = false;
+    const startId = requestAnimationFrame(() => {
+      if (cancelled) return;
+      setRuntimeLoading(true);
+      setRuntimeErr(null);
+      fetchRuntimeDiagnostics()
+        .then((d) => {
+          if (!cancelled) setRuntime(d);
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setRuntimeErr("Tidak bisa memuat config worker. Pastikan backend jalan dan NEXT_PUBLIC_BACKEND_URL benar.");
+          }
+        })
+        .finally(() => {
+          if (!cancelled) setRuntimeLoading(false);
+        });
+    });
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(startId);
+    };
+  }, [open, tab]);
 
   useEffect(() => {
     if (!open) return;
@@ -116,9 +145,6 @@ export function AgentDashboardModal({
   const subDesc = isSub ? findSubDescriptor(lead, target.subId) : undefined;
   const subRun = isSub ? findSubRun(fleetSummary, target.subId) : undefined;
 
-  const readmeMd = isSub ? (lead?.readmeMd ?? "") : (specialist?.readmeMd ?? "");
-  const previewHtml = extractFirstHtmlFence(readmeMd);
-
   const title = isSub
     ? `Sub-agent · ${subDesc?.role ?? target.subId}`
     : `Specialist · ${specialist?.name ?? "Agent"}`;
@@ -127,7 +153,7 @@ export function AgentDashboardModal({
     "Output kosong biasanya karena belum ada gateway LLM (`OPENAI_COMPAT_BASE_URL` + key) atau OpenClaw dimatikan (`OPENCLAW_ORCHESTRATION=0`). Isi `backend/.env` lalu jalankan ulang misi.";
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4">
       <button
         type="button"
         className="absolute inset-0 bg-black/70 backdrop-blur-sm"
@@ -138,12 +164,12 @@ export function AgentDashboardModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="agent-dash-title"
-        className="relative flex max-h-[min(92vh,780px)] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-white/15 bg-[#070f1c] shadow-2xl shadow-black/60"
+        className="relative flex max-h-[min(96vh,960px)] w-full max-w-[min(1400px,calc(100vw-1rem))] flex-col overflow-hidden rounded-2xl border border-white/15 bg-[#070f1c] shadow-2xl shadow-black/60"
       >
         <header className="flex shrink-0 items-start justify-between gap-3 border-b border-white/10 px-5 py-4">
           <div className="min-w-0">
             <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate">Agent dashboard</p>
-            <h2 id="agent-dash-title" className="truncate text-lg font-semibold text-white">
+            <h2 id="agent-dash-title" className="truncate text-xl font-semibold text-white sm:text-2xl">
               {title}
             </h2>
             {isSub && subDesc ? (
@@ -180,7 +206,7 @@ export function AgentDashboardModal({
           ))}
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 text-sm leading-relaxed">
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 text-[15px] leading-relaxed">
           {tab === "overview" && !isSub && (
             <div className="space-y-3 text-slate-200">
               {!specialist ? (
@@ -418,7 +444,7 @@ export function AgentDashboardModal({
                 ) : null}
               </div>
               {readmeMd.trim() ? (
-                <pre className="max-h-[min(58vh,520px)] overflow-auto whitespace-pre-wrap rounded-lg border border-white/10 bg-black/50 p-3 font-mono text-[11px] leading-relaxed text-slate-100">
+                <pre className="max-h-[min(68vh,680px)] overflow-auto whitespace-pre-wrap rounded-lg border border-white/10 bg-black/50 p-3 font-mono text-[12px] leading-relaxed text-slate-100 sm:text-[13px]">
                   {readmeMd}
                 </pre>
               ) : (
@@ -428,22 +454,76 @@ export function AgentDashboardModal({
           )}
 
           {tab === "preview" && (
-            <div className="space-y-2">
-              <p className="text-xs text-slate">
-                Pratinjau dari blok <code className="text-electric">{"```html"}</code> di README (iframe sandbox,
-                script tidak dijalankan).
-              </p>
+            <div className="space-y-4">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <p className="max-w-3xl text-sm text-slate">
+                  Pratinjau dari blok <code className="text-electric">{"```html"}</code> di README. Iframe pakai{" "}
+                  <code className="text-electric">sandbox=&quot;&quot;</code> (script tidak jalan). Buka tab baru untuk
+                  halaman penuh — itu URL <code className="text-electric">blob:</code> lokal (bisa menjalankan script;
+                  hanya untuk konten kamu sendiri).
+                </p>
+              </div>
+
+              {readmeUrls.length > 0 ? (
+                <div className="rounded-lg border border-electric/20 bg-electric/5 p-3">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-electric">Link di README</p>
+                  <ul className="flex flex-col gap-2">
+                    {readmeUrls.map((u) => (
+                      <li key={u} className="min-w-0">
+                        <a
+                          href={u}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex max-w-full items-center gap-2 break-all font-mono text-sm text-electric underline decoration-electric/40 underline-offset-2 hover:decoration-electric"
+                        >
+                          <ExternalLink className="h-4 w-4 shrink-0" aria-hidden />
+                          {u}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+
               {previewHtml ? (
-                <iframe
-                  title="HTML preview"
-                  className="h-[min(52vh,480px)] w-full rounded-lg border border-white/15 bg-white"
-                  sandbox=""
-                  srcDoc={previewHtml}
-                />
+                <>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {previewBlobUrl ? (
+                      <>
+                        <a
+                          href={previewBlobUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 rounded-lg border border-electric/40 bg-electric/15 px-3 py-2 text-sm font-medium text-electric hover:bg-electric/25"
+                        >
+                          <ExternalLink className="h-4 w-4 shrink-0" aria-hidden />
+                          Buka preview HTML di tab baru
+                        </a>
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-2 rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-slate hover:bg-white/10 hover:text-white"
+                          onClick={() => void navigator.clipboard.writeText(previewBlobUrl)}
+                        >
+                          <Copy className="h-4 w-4 shrink-0" aria-hidden />
+                          Salin URL blob
+                        </button>
+                      </>
+                    ) : null}
+                  </div>
+                  <div className="overflow-hidden rounded-xl border border-white/15 bg-white shadow-inner shadow-black/20">
+                    <iframe
+                      title="HTML preview"
+                      className="block h-[min(68vh,720px)] min-h-[320px] w-full"
+                      sandbox=""
+                      srcDoc={previewHtml}
+                    />
+                  </div>
+                </>
               ) : (
                 <p className="rounded-lg border border-white/10 bg-black/30 p-4 text-sm text-slate">
-                  Tidak ada fence <code className="text-electric">{"```html ... ```"}</code> di README. Minta output
-                  HTML di README atau tambahkan blok tersebut.
+                  Tidak ada fence <code className="text-electric">{"```html ... ```"}</code> di README. Kalau hanya
+                  punya link situs, pakai daftar <strong className="text-white">Link di README</strong> di atas (bila
+                  URL terdeteksi). Minta mother menaruh HTML di fence atau URL lengkap di README.
                 </p>
               )}
             </div>
@@ -456,7 +536,7 @@ export function AgentDashboardModal({
                   <p className="text-xs text-slate">
                     Lead specialist — laporan gabungan mother (scout → worker → reviewer + merge).
                   </p>
-                  <pre className="max-h-[45vh] overflow-auto whitespace-pre-wrap rounded-lg border border-white/10 bg-black/50 p-3 font-mono text-xs text-slate-100">
+                  <pre className="max-h-[min(62vh,640px)] overflow-auto whitespace-pre-wrap rounded-lg border border-white/10 bg-black/50 p-3 font-mono text-[12px] text-slate-100 sm:text-[13px]">
                     {fleetSummary.mergedReport}
                   </pre>
                 </>
@@ -498,7 +578,7 @@ export function AgentDashboardModal({
                   {skipHint}
                 </p>
               ) : null}
-              <pre className="max-h-[50vh] overflow-auto whitespace-pre-wrap rounded-lg border border-white/10 bg-black/50 p-3 font-mono text-xs text-slate-100">
+              <pre className="max-h-[min(62vh,640px)] overflow-auto whitespace-pre-wrap rounded-lg border border-white/10 bg-black/50 p-3 font-mono text-[12px] text-slate-100 sm:text-[13px]">
                 {subRun?.output?.trim() || "_Belum ada output._"}
               </pre>
             </div>

@@ -37,6 +37,14 @@ export type SpecialistAgentProfile = {
 
 export type MissionPayload = {
   prompt: string;
+  /** Extra knowledge pasted by the user (prepended into the effective mission text). */
+  contextNotes?: string;
+  /** External URLs (Tavily extract / research); merged into the mission for the mother + tools. */
+  referenceUrls?: string[];
+  /** When true, tool route runs Tavily search even without “research” keywords in the prompt. */
+  preferTavilySearch?: boolean;
+  /** User review / test feedback merged into the next mission (human-in-the-loop). */
+  motherReviewNotes?: string;
 };
 
 export type SubAgentRunResult = {

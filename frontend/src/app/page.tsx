@@ -9,6 +9,12 @@ import { VitalsPanel } from "@/components/vitals-panel";
 import { WorkspaceRail, type WorkspaceRecipe } from "@/components/workspace-rail";
 import { createMission } from "@/lib/api";
 import { AgentDashboardModal, type AgentDashboardTarget } from "@/components/agent-dashboard-modal";
+import {
+  MotherAgentModal,
+  emptyMotherMissionBundle,
+  motherBundleToMissionExtras,
+  type MotherMissionBundle
+} from "@/components/mother-agent-modal";
 import type { ChatMessage, FleetOrchestrationSummary, SpecialistAgentProfile } from "@/lib/types";
 
 const MissionCanvas = dynamic(
@@ -51,6 +57,8 @@ export default function Page() {
   const [fleetSummary, setFleetSummary] = useState<FleetOrchestrationSummary | null>(null);
   const [lastMissionPrompt, setLastMissionPrompt] = useState("");
   const [dashTarget, setDashTarget] = useState<AgentDashboardTarget | null>(null);
+  const [motherBundle, setMotherBundle] = useState<MotherMissionBundle>(emptyMotherMissionBundle());
+  const [motherModalOpen, setMotherModalOpen] = useState(false);
 
   function handleSelectRecipe(recipe: WorkspaceRecipe) {
     setSelectedRecipeId(recipe.id);
@@ -64,7 +72,10 @@ export default function Page() {
     const promptTrim = prompt.trim();
     setLastMissionPrompt(promptTrim);
     try {
-      const result = await createMission({ prompt: promptTrim });
+      const result = await createMission({
+        prompt: promptTrim,
+        ...motherBundleToMissionExtras(motherBundle)
+      });
       setProfile(result.profile);
       setSquad(result.specialists ?? [result.profile]);
       setFleetSummary(result.fleetSummary ?? null);
@@ -103,6 +114,15 @@ export default function Page() {
 
   return (
     <main className="flex h-screen min-h-[720px] flex-col bg-navy text-white">
+      <MotherAgentModal
+        open={motherModalOpen}
+        onClose={() => setMotherModalOpen(false)}
+        bundle={motherBundle}
+        onApply={setMotherBundle}
+        missionPrompt={prompt}
+        specialists={squad}
+        fleetSummary={fleetSummary}
+      />
       <AgentDashboardModal
         open={dashTarget !== null}
         onClose={() => setDashTarget(null)}
@@ -114,11 +134,12 @@ export default function Page() {
       <div className="flex min-h-0 flex-1">
         <WorkspaceRail selectedId={selectedRecipeId} onSelectRecipe={handleSelectRecipe} />
 
-        <section className="flex min-w-0 flex-1 flex-col gap-3 p-4">
+        <section className="flex min-w-0 flex-1 flex-col gap-3 p-4 sm:gap-4 sm:p-5">
           <MissionCanvas
             status={status}
             specialists={squad}
             onSelectAgent={(t) => setDashTarget(t)}
+            onOpenMotherDashboard={() => setMotherModalOpen(true)}
           />
           <div className="grid shrink-0 grid-cols-1 gap-3 lg:grid-cols-2">
             <VitalsPanel status={status} />
@@ -136,6 +157,7 @@ export default function Page() {
           specialists={squad}
           fleetSummary={fleetSummary}
           onOpenAgentDashboard={(t) => setDashTarget(t)}
+          onOpenMotherDashboard={() => setMotherModalOpen(true)}
           onRunMission={handleRunMission}
           busy={busy}
         />

@@ -18,7 +18,7 @@ export function inferSpecializations(prompt: string): string[] {
   const p = prompt.toLowerCase();
   const out = new Set<string>();
   if (
-    /browser|playwright|puppeteer|selenium|headless|navigate|click\b|web ui|website|localhost:\d+/.test(
+    /browser|playwright|puppeteer|selenium|headless|navigate|click\b|web ui|website|localhost:\d+|https?:\/\//.test(
       p
     )
   ) {

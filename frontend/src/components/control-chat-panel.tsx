@@ -17,6 +17,7 @@ type ControlChatPanelProps = {
   specialists: SpecialistAgentProfile[];
   fleetSummary: FleetOrchestrationSummary | null;
   onOpenAgentDashboard: (target: AgentDashboardTarget) => void;
+  onOpenMotherDashboard: () => void;
   onRunMission: () => void;
   busy: boolean;
 };
@@ -37,6 +38,7 @@ export function ControlChatPanel({
   specialists,
   fleetSummary,
   onOpenAgentDashboard,
+  onOpenMotherDashboard,
   onRunMission,
   busy
 }: ControlChatPanelProps) {
@@ -65,20 +67,29 @@ export function ControlChatPanel({
   }
 
   return (
-    <aside className="flex h-full w-[380px] shrink-0 flex-col border-l border-white/10 bg-black/30">
-      <div className="border-b border-white/10 px-4 py-4">
+    <aside className="flex h-full w-[400px] shrink-0 flex-col border-l border-white/10 bg-gradient-to-b from-black/40 to-black/20">
+      <div className="border-b border-white/10 px-4 py-4 sm:px-5">
         <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-slate">Control</p>
-        <h2 className="text-base font-semibold text-white">Mission chat</h2>
-        <p className="mt-1 text-xs text-slate">
-          Steer the mother agent, launch a mission, and inspect generated specialists (squad tabs appear for
-          web/CMS-style missions).
+        <h2 className="text-base font-semibold tracking-tight text-white">Mission chat</h2>
+        <p className="mt-1.5 text-xs leading-relaxed text-slate">
+          Prompt di sini → <strong className="text-white/90">Run mission</strong>. Mother: Services (baca docs), konteks,
+          URL, dan catatan review lewat{" "}
+          <button
+            type="button"
+            onClick={onOpenMotherDashboard}
+            className="font-semibold text-violet-300 underline decoration-violet-500/40 underline-offset-2 hover:text-violet-200"
+          >
+            dashboard Mother
+          </button>{" "}
+          (juga dari node Mother di canvas).
         </p>
       </div>
 
       <div ref={listRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
         {messages.length === 0 ? (
           <p className="rounded-lg border border-dashed border-white/15 bg-white/5 px-3 py-3 text-xs text-slate">
-            Describe what you want the specialist to do. This panel mirrors a workflow “control room” chat on the right, while APIs and recipes stay on the left rail.
+            Tulis misi, lalu Run. Setelah ada hasil, iterasi: buka dashboard Mother, isi review / Services, simpan, Run
+            lagi.
           </p>
         ) : null}
         {messages.map((message) => (
@@ -105,21 +116,21 @@ export function ControlChatPanel({
           rows={4}
           value={prompt}
           onChange={(event) => onPromptChange(event.target.value)}
-          placeholder="Example: Build a research specialist that cites Tavily results..."
-          className="mt-2 w-full resize-none rounded-lg border border-white/10 bg-slate-950/80 px-3 py-2 text-sm text-white outline-none ring-0 transition focus:border-electric/60"
+          placeholder="Contoh: buat specialist CMS artikel dengan Next.js…"
+          className="mt-2 w-full resize-none rounded-xl border border-white/10 bg-slate-950/80 px-3 py-2 text-sm text-white outline-none transition focus:border-electric/60"
         />
-        <div className="mt-3 flex items-center gap-2">
+        <div className="mt-3">
           <button
             type="button"
             onClick={handleSend}
             disabled={busy || !prompt.trim()}
-            className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-electric px-3 py-2 text-sm font-semibold text-navy transition enabled:hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-electric px-3 py-2.5 text-sm font-semibold text-navy transition enabled:hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
           >
             <Send className="h-4 w-4" aria-hidden />
             Run mission
           </button>
         </div>
-        <p className="mt-2 text-[11px] text-slate">Worker status: {status}</p>
+        <p className="mt-2 text-[11px] text-slate">Worker: {status}</p>
       </div>
 
       <div className="border-t border-white/10 px-4 py-4">
@@ -172,7 +183,7 @@ export function ControlChatPanel({
               </button>
             </div>
             <p className="mb-2 text-[10px] text-slate">
-              Tiap sub-agent: buka dashboard untuk lihat task, API ref, dan hasil terpisah.
+              Sub-agent: buka dashboard masing-masing. Ringkas mother: tombol di atas.
             </p>
             <div className="space-y-2">
               {fleetSummary.subAgentRuns.map((r) => (

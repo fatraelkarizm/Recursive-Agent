@@ -51,7 +51,8 @@ const RECIPES: WorkspaceRecipe[] = [
 ];
 
 const INTEGRATIONS = [
-  { name: "Mother agent API", detail: "POST /api/missions", tone: "text-electric" },
+  { name: "Mother agent API", detail: "POST /api/missions (+ konteks, review, URLs)", tone: "text-electric" },
+  { name: "Mother Services", detail: "POST /api/preview-extract (baca docs / URL)", tone: "text-electric" },
   { name: "Runtime config", detail: "GET /api/runtime-config (model/env, no secrets)", tone: "text-electric" },
   { name: "OpenClaw CLI", detail: "openclaw agent --json (see docs/OPENCLAW_INTEGRATION.md)", tone: "text-electric" },
   { name: "Tavily", detail: "Extract + Search (TAVILY_API_KEY)", tone: "text-electric" },
@@ -67,11 +68,14 @@ type WorkspaceRailProps = {
 
 export function WorkspaceRail({ selectedId, onSelectRecipe }: WorkspaceRailProps) {
   return (
-    <aside className="flex h-full w-[260px] shrink-0 flex-col border-r border-white/10 bg-black/25">
-      <div className="border-b border-white/10 px-4 py-4">
+    <aside className="flex h-full w-[272px] shrink-0 flex-col border-r border-white/10 bg-gradient-to-b from-black/35 to-black/15">
+      <div className="border-b border-white/10 px-4 py-4 sm:px-5">
         <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate">Workspace</p>
-        <h1 className="mt-1 text-base font-semibold text-white">Recursive Agent</h1>
-        <p className="mt-1 text-xs leading-relaxed text-slate">Pick a recipe to prefill the control chat. APIs and tools stay visible here like a workflow palette.</p>
+        <h1 className="mt-1 text-base font-semibold tracking-tight text-white">Recursive Agent</h1>
+        <p className="mt-1.5 text-xs leading-relaxed text-slate">
+          Recipe mengisi prompt. Konteks panjang &amp; URL lewat modal <span className="text-electric">Mother</span> di
+          canvas / chat.
+        </p>
       </div>
 
       <div className="flex-1 overflow-y-auto px-2 py-3">

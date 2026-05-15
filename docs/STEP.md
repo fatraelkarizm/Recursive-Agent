@@ -13,6 +13,9 @@ cd frontend && npm install && npm run dev  # http://localhost:3000
 
 **Still open for “full product” quality** — persistence, streaming logs, real MCP hosts, hardened budgets, production deploy polish. Use the checklist below to track those slices.
 
+### Automatic orchestration vs “smart” sub-agents (read this for demos)
+The UI and mission graph **always** show the fleet (scout → worker → reviewer) and a **merged Markdown report**. That is “automatic orchestration” in this slice: the pipeline runs without the user typing “fleet” or “OpenClaw”. **However**, each sub-agent leg still calls an external LLM (`POST …/chat/completions` via `OPENAI_COMPAT_*`, or OpenClaw CLI). If neither is configured or the call fails, sub-agent rows show `source=skipped` and stub text — the mission can still **complete** and **persist** to Postgres. For a demo where sub-agents visibly “think”, configure SumoPod/OpenAI-compat and/or OpenClaw as in [README](./README.md) (OPENAI_COMPAT_*) and [OPENCLAW_INTEGRATION.md](./OPENCLAW_INTEGRATION.md).
+
 The recommended shape is a single Next.js frontend plus a separate Node worker for agent orchestration and tool execution.
 
 ## Boilerplate Intent

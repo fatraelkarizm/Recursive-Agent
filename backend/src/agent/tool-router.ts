@@ -1,6 +1,9 @@
 import { tavily } from "@tavily/core";
 
-export async function runToolRoute(prompt: string): Promise<string> {
+export async function runToolRoute(
+  prompt: string,
+  opts?: { preferTavilySearch?: boolean }
+): Promise<string> {
   const key = process.env.TAVILY_API_KEY?.trim();
   const p = prompt.toLowerCase();
 
@@ -10,7 +13,15 @@ export async function runToolRoute(prompt: string): Promise<string> {
 
   const client = tavily({ apiKey: key });
 
-  if (p.includes("research") || p.includes("tavily") || p.includes("search the web") || p.includes("look up online")) {
+  const researchish =
+    Boolean(opts?.preferTavilySearch) ||
+    p.includes("research") ||
+    p.includes("tavily") ||
+    p.includes("search the web") ||
+    p.includes("look up online") ||
+    p.includes("jalankan tavily");
+
+  if (researchish) {
     try {
       const q = prompt.trim().slice(0, 500);
       const res = await client.search(q, {

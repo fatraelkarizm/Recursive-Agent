@@ -32,7 +32,7 @@ The user experience should feel like this:
 - Lets the user manually adjust the agent instructions, settings, and API key references.
 - Uses external tools for research, execution, and integration work.
 - Shows a live operational dashboard with mission state, logs, runtime health, and budget awareness.
-- **Automatic orchestration** (default): every mission spins up scout/worker/reviewer sub-agents and runs the sequential fleet + merged mother report — no need to say "OpenClaw" in the prompt. Set `AUTO_ORCHESTRATION=0` in `backend/.env` to orchestrate only when the user asks for fleet/multi-agent explicitly.
+- **Automatic orchestration** (default): every mission **schedules** the scout/worker/reviewer fleet and builds a merged mother report in the mission graph. **Sub-agent turns only produce real LLM output** when an OpenAI-compatible gateway (`OPENAI_COMPAT_BASE_URL` + bearer) or a working **OpenClaw** fallback is available; otherwise events show `source=skipped` with a placeholder — the mission still completes (graceful degradation). Set `AUTO_ORCHESTRATION=0` in `backend/.env` to orchestrate only when the user asks for fleet/multi-agent explicitly.
 - Keeps the system bounded with circuit breakers, budgets, and state checkpoints.
 
 ## Why This Fits The Hackathon
@@ -114,6 +114,15 @@ The implementation will need values for:
 - Optional observability services
 
 See [SETUP.md](./docs/SETUP.md) and [LIBRARY.md](./docs/LIBRARY.md) for the exact list.
+
+### Fleet / sub-agent LLM gateway (`OPENAI_COMPAT_*`)
+Sub-agents (scout → worker → reviewer) call **`POST …/chat/completions`** on an **OpenAI-compatible** HTTP API (same shape as OpenAI, SumoPod, LiteLLM, vLLM, many hosted gateways).
+
+- **`OPENAI_COMPAT_BASE_URL`** — Root URL that already includes **`/v1`**. Contoh: `https://ai.sumopod.com/v1` (bukan cuma hostname; backend akan menempel path `chat/completions`).
+- **`OPENAI_COMPAT_API_KEY`** atau **`DEEPSEEK_API_KEY`** — Bearer token untuk header `Authorization`. Salah satu harus terisi.
+- **`OPENAI_COMPAT_MODEL`** — ID model di provider itu, mis. `deepseek/deepseek-v4-pro`.
+
+Tanpa pasangan **base URL + key**, fleet tetap jalan tapi tiap sub-agent `source=skipped` sampai OpenClaw CLI benar-benar bisa dipakai sebagai fallback. Lihat [OPENCLAW_INTEGRATION.md](./docs/OPENCLAW_INTEGRATION.md).
 
 ## Persistence
 The backend stores completed missions, generated specialist profiles, and ordered mission events in PostgreSQL:

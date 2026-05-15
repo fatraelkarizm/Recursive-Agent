@@ -1,6 +1,13 @@
 import type { FleetOrchestrationSummary, SpecialistAgentProfile, SubAgentRunResult } from "../types";
 import { isOpenAiCompatConfigured, openAiCompatibleChatCompletion } from "../compat/openai-compatible-chat";
+import { logger } from "../logging";
 import { runOpenClawAgentMessage } from "./openclaw-bridge";
+
+function sanitizeGatewayErrorMessage(raw: string): string {
+  let m = raw.replace(/Bearer\s+sk-[^\s"'<]+/gi, "Bearer [redacted]");
+  m = m.replace(/\bsk-[a-zA-Z0-9_-]{8,}\b/g, "[redacted]");
+  return m.length > 450 ? `${m.slice(0, 447)}…` : m;
+}
 
 function fleetMaxTokensPerSub(): number {
   const n = Number(process.env.FLEET_MAX_TOKENS_PER_SUB ?? "1400");
@@ -68,8 +75,19 @@ async function runSubViaOpenAiCompat(params: {
       maxTokens: fleetMaxTokensPerSub(),
       temperature: 0.45
     });
-  } catch {
-    return null;
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    logger.warn({ err, subId: params.sub.id }, "OpenAI-compat fleet sub-agent call failed");
+    return [
+      "_Gateway OpenAI-compatible sudah di-set tetapi **permintaan gagal**._",
+      "",
+      "**Ringkas error (tanpa menampilkan key):**",
+      "```text",
+      sanitizeGatewayErrorMessage(detail),
+      "```",
+      "",
+      "_Cek: kuota/key, `OPENAI_COMPAT_MODEL`, koneksi dari mesin worker ke upstream, dan log backend._"
+    ].join("\n");
   }
 }
 

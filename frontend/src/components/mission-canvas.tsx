@@ -66,7 +66,7 @@ function layoutSubAgentPositions(count: number, leadCenterX: number): { x: numbe
   const card = 188;
   const gap = 22;
   const total = count * card + (count - 1) * gap;
-  let x0 = leadCenterX - total / 2;
+  const x0 = leadCenterX - total / 2;
   return Array.from({ length: count }, (_, i) => ({
     x: Math.round(x0 + i * (card + gap)),
     y
@@ -149,9 +149,10 @@ type FlowSurfaceProps = {
   status: string;
   specialists: SpecialistAgentProfile[];
   onSelectAgent?: (target: AgentDashboardTarget) => void;
+  onOpenMotherDashboard?: () => void;
 };
 
-function FlowSurface({ status, specialists, onSelectAgent }: FlowSurfaceProps) {
+function FlowSurface({ status, specialists, onSelectAgent, onOpenMotherDashboard }: FlowSurfaceProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState(cloneNodes(STATIC_BASE_NODES));
   const [edges, setEdges, onEdgesChange] = useEdgesState(cloneEdges(STATIC_BASE_EDGES));
 
@@ -226,11 +227,18 @@ function FlowSurface({ status, specialists, onSelectAgent }: FlowSurfaceProps) {
         }
       }
 
-      return list.map((node) => ({
-        ...node,
-        className: ring,
-        data: { ...(node.data as object), pulse }
-      }));
+      return list.map((node) => {
+        const baseData = { ...(node.data as object), pulse };
+        const data =
+          node.id === "mother" && onOpenMotherDashboard
+            ? { ...baseData, onConfigure: onOpenMotherDashboard }
+            : baseData;
+        return {
+          ...node,
+          className: ring,
+          data
+        };
+      });
     });
 
     setEdges(() => {
@@ -262,7 +270,7 @@ function FlowSurface({ status, specialists, onSelectAgent }: FlowSurfaceProps) {
       }));
       return [...base, ...motherToSpecs, ...subEdges];
     });
-  }, [specialists, status, setNodes, setEdges]);
+  }, [specialists, status, setNodes, setEdges, onOpenMotherDashboard]);
 
   const defaultEdgeOptions = useMemo(
     () => ({
@@ -304,27 +312,35 @@ type MissionCanvasProps = {
   status: string;
   specialists: SpecialistAgentProfile[];
   onSelectAgent?: (target: AgentDashboardTarget) => void;
+  onOpenMotherDashboard?: () => void;
 };
 
-export function MissionCanvas({ status, specialists, onSelectAgent }: MissionCanvasProps) {
+export function MissionCanvas({ status, specialists, onSelectAgent, onOpenMotherDashboard }: MissionCanvasProps) {
   return (
-    <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-white/10 bg-gradient-to-b from-[#050f1f] to-[#030914]">
-      <header className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+    <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-b from-[#050f1f] via-[#061222] to-[#030914] shadow-inner shadow-black/40">
+      <header className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-3 sm:px-5">
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-slate">Canvas</p>
-          <h2 className="text-sm font-semibold text-white">Mission workflow</h2>
+          <h2 className="text-sm font-semibold tracking-tight text-white sm:text-base">Mission workflow</h2>
         </div>
-        <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] text-slate">
-          Status: <span className="text-electric">{status}</span>
+        <span className="shrink-0 rounded-full border border-white/10 bg-black/30 px-3 py-1 text-[11px] text-slate">
+          <span className="text-slate">Status</span>{" "}
+          <span className="font-medium text-electric">{status}</span>
         </span>
       </header>
-      <p className="border-b border-white/10 px-4 py-1.5 text-[10px] text-slate">
-        Klik node <span className="text-violet-300">specialist</span> atau <span className="text-fuchsia-300">sub-agent</span>{" "}
-        untuk buka dashboard (tab Task, API, Hasil).
+      <p className="border-b border-white/10 px-4 py-2 text-[10px] leading-relaxed text-slate sm:px-5">
+        Node <span className="text-electric">Mother</span>: tombol <strong className="text-white">Mother dashboard</strong>
+        . Klik <span className="text-violet-300">specialist</span> / <span className="text-fuchsia-300">sub-agent</span>{" "}
+        untuk dashboard mereka.
       </p>
       <div className="relative min-h-[420px] flex-1">
         <ReactFlowProvider>
-          <FlowSurface status={status} specialists={specialists} onSelectAgent={onSelectAgent} />
+          <FlowSurface
+            status={status}
+            specialists={specialists}
+            onSelectAgent={onSelectAgent}
+            onOpenMotherDashboard={onOpenMotherDashboard}
+          />
         </ReactFlowProvider>
       </div>
     </section>

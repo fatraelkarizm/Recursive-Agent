@@ -20,8 +20,10 @@ export const TriggerNode = memo(function TriggerNode({ data }: NodeProps) {
   );
 });
 
+type MotherNodeData = LabelData & { onConfigure?: () => void; pulse?: boolean };
+
 export const MotherAgentNode = memo(function MotherAgentNode({ data }: NodeProps) {
-  const { label } = data as LabelData;
+  const { label, onConfigure } = data as MotherNodeData;
   return (
     <div className="min-w-[220px] max-w-[260px] rounded-xl border-2 border-electric/70 bg-[#0b1f36] px-3 py-3 shadow-lg">
       <Handle type="target" position={Position.Left} className="!h-2 !w-2 !border-0 !bg-electric" />
@@ -31,9 +33,22 @@ export const MotherAgentNode = memo(function MotherAgentNode({ data }: NodeProps
       </div>
       <ul className="mt-2 space-y-1.5 text-[11px] text-slate">
         <li className="rounded border border-dashed border-white/15 bg-black/20 px-2 py-1">Chat model</li>
-        <li className="rounded border border-dashed border-white/15 bg-black/20 px-2 py-1">Postgres memory (planned)</li>
-        <li className="rounded border border-dashed border-white/15 bg-black/20 px-2 py-1">MCP tools</li>
+        <li className="rounded border border-dashed border-white/15 bg-black/20 px-2 py-1">Konteks + URL (modal)</li>
+        <li className="rounded border border-dashed border-white/15 bg-black/20 px-2 py-1">MCP / Tavily</li>
       </ul>
+      {onConfigure ? (
+        <button
+          type="button"
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            onConfigure();
+          }}
+          className="mt-2 w-full rounded-lg border border-electric/40 bg-electric/10 px-2 py-1.5 text-[10px] font-semibold text-electric hover:bg-electric/20"
+        >
+          Mother dashboard
+        </button>
+      ) : null}
       <Handle
         type="source"
         position={Position.Right}

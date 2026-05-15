@@ -37,6 +37,10 @@ export type ChatMessage = {
 
 export type MissionRequest = {
   prompt: string;
+  contextNotes?: string;
+  referenceUrls?: string[];
+  preferTavilySearch?: boolean;
+  motherReviewNotes?: string;
 };
 
 export type SubAgentRunResult = {

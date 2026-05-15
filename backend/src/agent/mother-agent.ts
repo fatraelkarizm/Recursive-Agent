@@ -1,4 +1,5 @@
 import type { MissionPayload, MissionResult, SpecialistAgentProfile } from "../types";
+import { buildEffectiveMissionPrompt } from "./mission-prompt";
 import { buildMissionGraph } from "./mission-graph";
 import { orchestrateViaOpenClaw, shouldRunOpenClaw } from "./openclaw-bridge";
 import { runSubAgentFleet } from "./fleet-orchestrator";
@@ -20,9 +21,10 @@ export function generateSpecialistProfile(prompt: string): SpecialistAgentProfil
 
 export async function runMission(payload: MissionPayload): Promise<MissionResult> {
   const missionId = randomId(10);
-  const squad = inferSpecialistSquad(payload.prompt);
+  const effectivePrompt = buildEffectiveMissionPrompt(payload);
+  const squad = inferSpecialistSquad(effectivePrompt);
   for (const member of squad) {
-    await enrichProfileReadmeWithSumopod(member, payload.prompt);
+    await enrichProfileReadmeWithSumopod(member, effectivePrompt);
   }
 
   const profile = squad[0];
@@ -37,7 +39,7 @@ export async function runMission(payload: MissionPayload): Promise<MissionResult
 
   let browserContext: string | undefined;
   if (profile.specializations.includes("browser-automation")) {
-    const browserEvent = await browserTouchFromPrompt(payload.prompt);
+    const browserEvent = await browserTouchFromPrompt(effectivePrompt);
     events.push(browserEvent);
     browserContext = browserEvent;
   }
@@ -46,7 +48,7 @@ export async function runMission(payload: MissionPayload): Promise<MissionResult
   if (profile.subAgents?.length) {
     const fleet = await runSubAgentFleet({
       missionId,
-      motherPrompt: payload.prompt,
+      motherPrompt: effectivePrompt,
       profile,
       browserContext
     });
@@ -55,13 +57,13 @@ export async function runMission(payload: MissionPayload): Promise<MissionResult
   } else if (shouldRunOpenClaw(profile)) {
     const oc = await orchestrateViaOpenClaw({
       missionId,
-      motherPrompt: payload.prompt,
+      motherPrompt: effectivePrompt,
       profile
     });
     events.push(oc);
   }
 
-  const toolEvent = await runToolRoute(payload.prompt);
+  const toolEvent = await runToolRoute(effectivePrompt, { preferTavilySearch: payload.preferTavilySearch === true });
   events.push(`Tool route: ${toolEvent}`);
 
   const sandboxEvent = await runSandboxTask("echo specialist-agent-ready");
@@ -78,7 +80,7 @@ export async function runMission(payload: MissionPayload): Promise<MissionResult
 
   try {
     const persistence = await persistMissionResult({
-      prompt: payload.prompt,
+      prompt: effectivePrompt,
       result
     });
 

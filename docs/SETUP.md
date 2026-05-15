@@ -222,7 +222,7 @@ npm run dev:frontend
 
 ## 9. Recommended MVP Scope
 Build the smallest demo that can be shown in under two minutes:
-- one mother agent
+- one Central Agent
 - one visible mission state machine
 - one tool call
 - one log panel

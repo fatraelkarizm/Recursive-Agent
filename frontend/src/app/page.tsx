@@ -1,14 +1,13 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useState } from "react";
-import { nanoid } from "nanoid";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppHeader } from "@/components/app-header";
 import { ControlChatPanel } from "@/components/control-chat-panel";
 import { KnowledgePanel } from "@/components/knowledge-panel";
 import { TerminalDrawer } from "@/components/terminal-drawer";
 import { VitalsPanel } from "@/components/vitals-panel";
-import { WorkspaceRail, type WorkspaceRecipe } from "@/components/workspace-rail";
+import { WorkspaceRail } from "@/components/workspace-rail";
 import { AgentDashboardModal, type AgentDashboardTarget } from "@/components/agent-dashboard-modal";
 import {
   MotherAgentModal,
@@ -16,8 +15,15 @@ import {
   motherBundleToMissionExtras,
   type MotherMissionBundle
 } from "@/components/mother-agent-modal";
-import { fetchCanvasAgents } from "@/lib/api";
+import { clearCanvasAgents, deleteCanvasAgent, fetchCanvasAgents } from "@/lib/api";
 import { mergeCanvasAgents, isPlaceholderAgent } from "@/lib/canvas-agents";
+import {
+  loadCanvasViewMode,
+  loadHiddenAgentIds,
+  saveCanvasViewMode,
+  saveHiddenAgentIds,
+  type CanvasViewMode
+} from "@/lib/canvas-agent-prefs";
 import { createMissionStream } from "@/lib/mission-stream";
 import type {
   ChatMessage,
@@ -60,7 +66,6 @@ export default function Page() {
   const [profile, setProfile] = useState<SpecialistAgentProfile>(initialProfile);
   const [squad, setSquad] = useState<SpecialistAgentProfile[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [selectedRecipeId, setSelectedRecipeId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [fleetSummary, setFleetSummary] = useState<FleetOrchestrationSummary | null>(null);
   const [lastMissionPrompt, setLastMissionPrompt] = useState("");
@@ -74,6 +79,10 @@ export default function Page() {
   const [progress, setProgress] = useState<MissionProgressEvent[]>([]);
   const [progressCurrent, setProgressCurrent] = useState<MissionProgressEvent | null>(null);
   const [agentsLoaded, setAgentsLoaded] = useState(false);
+  const [canvasViewMode, setCanvasViewMode] = useState<CanvasViewMode>(() => loadCanvasViewMode());
+  const [hiddenAgentIds, setHiddenAgentIds] = useState<Set<string>>(() => loadHiddenAgentIds());
+  const [agentsBusy, setAgentsBusy] = useState(false);
+
   const loadAgents = useCallback(async () => {
     try {
       const rows = await fetchCanvasAgents();
@@ -81,7 +90,12 @@ export default function Page() {
         setSquad([initialProfile]);
         return;
       }
-      setSquad(rows.map((r) => r.profile));
+      const profiles = rows.map((r) => r.profile);
+      setSquad(profiles);
+      const latest = rows[rows.length - 1];
+      if (latest?.missionId) {
+        setActiveMissionId(latest.missionId);
+      }
     } catch {
       setSquad([initialProfile]);
     } finally {
@@ -106,11 +120,6 @@ export default function Page() {
     const id = requestAnimationFrame(() => setProfile(lead));
     return () => cancelAnimationFrame(id);
   }, [squad]);
-
-  function handleSelectRecipe(recipe: WorkspaceRecipe) {
-    setSelectedRecipeId(recipe.id);
-    setPrompt(recipe.prompt);
-  }
 
   async function handleRunMission() {
     if (!prompt.trim() || busy) return;
@@ -143,44 +152,20 @@ export default function Page() {
             setSquadSource(result.squadSource ?? null);
             setStatus(result.status);
 
-            const lines = [
-              `Mission ${result.missionId} → ${result.status}`,
-              result.motherBrief ? `Mother: ${result.motherBrief.slice(0, 200)}…` : null,
-              result.motherReview ? `Review: ${result.motherReview.slice(0, 160)}…` : null,
-              ...(result.events ?? []).map((event) => `• ${event}`)
-            ].filter(Boolean);
-            setMessages((current) => [
-              ...current,
-              {
-                id: nanoid(),
-                role: "assistant",
-                content: lines.join("\n"),
-                at: Date.now()
-              }
-            ]);
+            // Hasil mission -> Knowledge / Terminal / Central dashboard (bukan chat assistant yang menutupi UI).
           },
           onError: (message) => {
             setStatus("failed");
-            setMessages((current) => [
-              ...current,
-              { id: nanoid(), role: "assistant", content: message, at: Date.now() }
-            ]);
+            console.error(message);
           }
         }
       );
     } catch (error) {
       console.error(error);
       setStatus("failed");
-      setMessages((current) => [
-        ...current,
-        {
-          id: nanoid(),
-          role: "assistant",
-          content:
-            "Mission failed before reaching the worker. Start the backend (`cd backend && npm run dev`) and confirm `NEXT_PUBLIC_BACKEND_URL` points to it.",
-          at: Date.now()
-        }
-      ]);
+      console.error(
+        "Mission failed before reaching the worker. Start backend and check NEXT_PUBLIC_BACKEND_URL."
+      );
     } finally {
       setBusy(false);
       setProgressCurrent(null);
@@ -188,6 +173,78 @@ export default function Page() {
   }
 
   const canvasAgents = squad.filter((a) => !isPlaceholderAgent(a));
+
+  const visibleCanvasAgents = useMemo(() => {
+    let list = canvasAgents.filter((a) => !hiddenAgentIds.has(a.persistedId ?? ""));
+    if (canvasViewMode === "latest-mission" && activeMissionId) {
+      list = list.filter((a) => a.missionId === activeMissionId);
+    }
+    return list;
+  }, [canvasAgents, hiddenAgentIds, canvasViewMode, activeMissionId]);
+
+  const handleCanvasViewMode = useCallback((mode: CanvasViewMode) => {
+    setCanvasViewMode(mode);
+    saveCanvasViewMode(mode);
+  }, []);
+
+  const handleToggleHidden = useCallback((id: string) => {
+    setHiddenAgentIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      saveHiddenAgentIds(next);
+      return next;
+    });
+  }, []);
+
+  const handleDeleteAgent = useCallback(
+    async (id: string) => {
+      setAgentsBusy(true);
+      try {
+        await deleteCanvasAgent(id);
+        setSquad((prev) => prev.filter((a) => a.persistedId !== id));
+        setHiddenAgentIds((prev) => {
+          const next = new Set(prev);
+          next.delete(id);
+          saveHiddenAgentIds(next);
+          return next;
+        });
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setAgentsBusy(false);
+      }
+    },
+    []
+  );
+
+  const handleKeepLatestMission = useCallback(async () => {
+    if (!activeMissionId) return;
+    setAgentsBusy(true);
+    try {
+      await clearCanvasAgents(activeMissionId);
+      setSquad((prev) => prev.filter((a) => !a.persistedId || a.missionId === activeMissionId));
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setAgentsBusy(false);
+    }
+  }, [activeMissionId]);
+
+  const handleClearAllAgents = useCallback(async () => {
+    if (!window.confirm("Hapus semua agent dari database?")) return;
+    setAgentsBusy(true);
+    try {
+      await clearCanvasAgents();
+      setSquad([initialProfile]);
+      setHiddenAgentIds(new Set());
+      saveHiddenAgentIds(new Set());
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setAgentsBusy(false);
+    }
+  }, []);
 
   return (
     <main className="flex h-screen min-h-[720px] flex-col bg-navy text-white">
@@ -200,6 +257,15 @@ export default function Page() {
         missionPrompt={prompt}
         specialists={squad}
         fleetSummary={fleetSummary}
+        activeMissionId={activeMissionId}
+        canvasViewMode={canvasViewMode}
+        onCanvasViewModeChange={handleCanvasViewMode}
+        hiddenAgentIds={hiddenAgentIds}
+        onToggleHiddenAgent={handleToggleHidden}
+        onDeleteAgent={handleDeleteAgent}
+        onKeepLatestMissionAgents={handleKeepLatestMission}
+        onClearAllAgents={handleClearAllAgents}
+        agentsBusy={agentsBusy}
       />
       <AgentDashboardModal
         open={dashTarget !== null}
@@ -211,7 +277,7 @@ export default function Page() {
         activeMissionId={activeMissionId}
       />
       <div className="flex min-h-0 flex-1">
-        <WorkspaceRail selectedId={selectedRecipeId} onSelectRecipe={handleSelectRecipe} />
+        <WorkspaceRail />
 
         <section className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 p-4 sm:gap-3 sm:p-5">
           <div className="flex min-h-0 flex-[1] flex-col">
@@ -222,7 +288,7 @@ export default function Page() {
           ) : (
             <MissionCanvas
               status={status}
-              specialists={canvasAgents.length > 0 ? canvasAgents : squad}
+              specialists={visibleCanvasAgents.length > 0 ? visibleCanvasAgents : squad}
               activeMissionId={activeMissionId}
               onSelectAgent={(t) => setDashTarget(t)}
               onOpenMotherDashboard={() => setMotherModalOpen(true)}
@@ -239,7 +305,7 @@ export default function Page() {
               motherReview={motherReview}
               squadSource={squadSource}
               progress={progress}
-              agentCount={canvasAgents.length}
+              agentCount={visibleCanvasAgents.length}
             />
             <VitalsPanel status={status} />
             <TerminalDrawer events={messages.filter((m) => m.role === "assistant").slice(-1)} />

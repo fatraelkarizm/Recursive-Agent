@@ -70,7 +70,7 @@ Use remote services when available, especially for production deployments. Some 
 
 | Integration | Role | Notes |
 |---|---|---|
-| OpenClaw Mother Agent | Orchestration layer | Conceptual core of the system |
+| OpenClaw / Central Agent | Orchestration layer | Conceptual core of the system |
 | Zapier MCP | External app automation | Best hosted over HTTP/SSE if possible |
 | Mem9 | Persistent memory | Use for long-lived context when available |
 | Tavily MCP | Search and research | Useful for web research flows |
@@ -82,7 +82,7 @@ The repository does not lock the project to one provider. Pick the model based o
 
 | Role | Recommended Model Type | Notes |
 |---|---|---|
-| Planner / Mother Agent | Strong reasoning model | Use the best model you can afford for mission decomposition |
+| Planner / Central Agent | Strong reasoning model | Use the best model you can afford for mission decomposition |
 | Reviewer / Critic | Reliable reasoning model | Should be stable and deterministic |
 | Worker / Executor | Lower-latency model | Enough for code edits and tool calls |
 | Research | Search-friendly model | Useful for summarization and extraction |

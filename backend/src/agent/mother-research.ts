@@ -1,14 +1,15 @@
 import { tavily } from "@tavily/core";
+import { stripMarkdownToPlainText } from "../util/plain-text";
 import { logger } from "../logging";
 
 /**
- * Mother always runs a Tavily search first so squad design and deliverables
+ * Central Agent always runs a Tavily search first so squad design and deliverables
  * are grounded in current web context.
  */
 export async function runMotherWebResearch(missionPrompt: string): Promise<string> {
   const key = process.env.TAVILY_API_KEY?.trim();
   if (!key) {
-    return "_TAVILY_API_KEY belum di-set di `backend/.env` — Mother melewati riset web._";
+    return "_TAVILY_API_KEY belum di-set di `backend/.env` — Central Agent melewati riset web._";
   }
 
   const client = tavily({ apiKey: key });
@@ -21,14 +22,14 @@ export async function runMotherWebResearch(missionPrompt: string): Promise<strin
       includeAnswer: true
     });
 
-    const lines = res.results.map(
-      (r) => `- **${r.title}** (${r.url}): ${(r.content ?? "").slice(0, 280)}…`
+    const lines = res.results.map((r) =>
+      stripMarkdownToPlainText(`${r.title}. ${(r.content ?? "").slice(0, 280)}. ${r.url}`)
     );
-    const head = res.answer ? `**Ringkasan Tavily:** ${res.answer}\n\n` : "";
-    return `${head}**Sumber (${lines.length}):**\n${lines.join("\n")}`;
+    const head = res.answer ? `Ringkasan Tavily: ${stripMarkdownToPlainText(res.answer)}\n\n` : "";
+    return stripMarkdownToPlainText(`${head}Sumber ${lines.length}:\n${lines.join("\n")}`);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    logger.warn({ err }, "Mother web research failed");
+    logger.warn({ err }, "Central Agent web research failed");
     return `_Riset web gagal: ${msg.slice(0, 240)}_`;
   }
 }

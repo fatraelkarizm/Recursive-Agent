@@ -29,12 +29,12 @@ function extractJsonObject(raw: string): unknown {
       }
     }
   }
-  if (start === -1 || end === -1) throw new Error("No JSON in mother review");
+  if (start === -1 || end === -1) throw new Error("No JSON in Central Agent review");
   return JSON.parse(candidate.slice(start, end + 1));
 }
 
 /**
- * Mother reviews each specialist deliverable and can request rework (second pass).
+ * Central Agent reviews each specialist deliverable and can request rework (second pass).
  */
 export async function runMotherQualityReview(params: {
   missionPrompt: string;
@@ -42,7 +42,7 @@ export async function runMotherQualityReview(params: {
   fleetSummary?: FleetOrchestrationSummary;
 }): Promise<MotherQualityReview> {
   const fallback: MotherQualityReview = {
-    reviewMarkdown: "_Mother review dilewati (gateway tidak tersedia)._",
+    reviewMarkdown: "_Central review dilewati (gateway tidak tersedia)._",
     verdicts: params.squad.map((s) => ({ agentName: s.name, verdict: "pass" as const }))
   };
 
@@ -66,7 +66,7 @@ export async function runMotherQualityReview(params: {
         {
           role: "system",
           content: [
-            "You are the Mother Agent — senior reviewer. You are smarter than the specialists.",
+            "You are the Central Agent — senior reviewer. You are smarter than the specialists.",
             "Review each specialist output against the user mission.",
             "Return ONLY JSON:",
             '{ "reviewMarkdown": "Indonesian markdown summary for the user",',
@@ -94,7 +94,7 @@ export async function runMotherQualityReview(params: {
       verdicts: Array.isArray(data.verdicts) ? data.verdicts : fallback.verdicts
     };
   } catch (err) {
-    logger.warn({ err }, "Mother quality review failed");
+    logger.warn({ err }, "Central Agent quality review failed");
     return fallback;
   }
 }

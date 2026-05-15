@@ -1,4 +1,4 @@
-import type { FleetOrchestrationSummary, SpecialistAgentProfile, SubAgentRunResult } from "../types";
+import type { FleetOrchestrationSummary, SpecialistAgentProfile, SubAgentDescriptor, SubAgentRunResult } from "../types";
 import { isOpenAiCompatConfigured, openAiCompatibleChatCompletion } from "../compat/openai-compatible-chat";
 import { logger } from "../logging";
 import { isOpenClawOrchestrationEnabled } from "./specializations";
@@ -54,44 +54,47 @@ function fleetMergeMaxTokens(): number {
 function buildSubUserPayload(params: {
   motherPrompt: string;
   profile: SpecialistAgentProfile;
-  sub: { id: string; role: string; focus: string };
+  sub: SubAgentDescriptor;
   priorOutputs: string;
-  browserContext?: string;
+  openClawContext?: string;
 }): string {
   return [
-    "## User mission (source of truth)",
-    params.motherPrompt.trim(),
+    "## OpenClaw mission pack (SKILL.md, URLs, Tavily research — source of truth)",
+    params.openClawContext?.trim() || params.motherPrompt.trim(),
     "",
     "## Lead specialist",
     `- Name: ${params.profile.name}`,
     `- Role: ${params.profile.role}`,
     `- Purpose: ${params.profile.purpose}`,
-    "",
+    params.profile.skillMd?.trim()
+      ? ["", "Lead SKILL", params.profile.skillMd.trim().slice(0, 3500), ""].join("\n")
+      : "",
+    params.sub.skillMd?.trim()
+      ? ["", "Sub-agent SKILL (role-specific)", params.sub.skillMd.trim().slice(0, 3500), ""].join("\n")
+      : "",
     "## Your sub-agent assignment",
     `- id: \`${params.sub.id}\``,
     `- role: \`${params.sub.role}\``,
     `- focus: ${params.sub.focus}`,
     "",
-    params.browserContext
-      ? ["## Browser / extract context (may be empty)", params.browserContext.trim(), ""].join("\n")
-      : "",
     "## Outputs from earlier sub-agents in this fleet (read-only; build on them)",
     params.priorOutputs.trim() || "_None yet — you are first in the chain._",
     "",
-    "Produce **only** your slice of the work: concrete bullets, risks, and next actions. Markdown. Do not repeat the full mission verbatim."
+    "Produce **only** your slice of the work. Markdown. For UI/HTML missions, worker/reviewer may include a ```html fence with full standalone page.",
+    "Do not claim you ran tools unless context says so."
   ].join("\n");
 }
 
 async function runSubViaOpenAiCompat(params: {
   motherPrompt: string;
   profile: SpecialistAgentProfile;
-  sub: { id: string; role: string; focus: string };
+  sub: SubAgentDescriptor;
   priorOutputs: string;
-  browserContext?: string;
+  openClawContext?: string;
 }): Promise<string | null> {
   if (!isOpenAiCompatConfigured()) return null;
   const system = [
-    "You are one leg of a multi-agent fleet coordinated by a mother agent.",
+    "You are one leg of a multi-agent fleet coordinated by a Central Agent.",
     "Stay inside your sub-agent role and focus. Be factual; do not claim you executed shell commands or external tools unless context says so.",
     "Reply in Markdown. Indonesian if the user mission is Indonesian."
   ].join(" ");
@@ -121,9 +124,9 @@ async function runSubViaOpenClaw(params: {
   missionId: string;
   motherPrompt: string;
   profile: SpecialistAgentProfile;
-  sub: { id: string; role: string; focus: string };
+  sub: SubAgentDescriptor;
   priorOutputs: string;
-  browserContext?: string;
+  openClawContext?: string;
 }): Promise<string | null> {
   if (process.env.OPENCLAW_ORCHESTRATION === "0") return null;
 
@@ -136,17 +139,13 @@ async function runSubViaOpenClaw(params: {
     `You are sub-agent ${params.sub.id} with role ${params.sub.role}.`,
     `Focus: ${params.sub.focus}`,
     "",
-    "## User mission",
-    params.motherPrompt.trim(),
+    params.openClawContext?.trim() ||
+      ["## User mission", params.motherPrompt.trim(), "", `Lead: ${params.profile.purpose}`].join("\n"),
     "",
-    "## Lead specialist context",
-    params.profile.purpose,
-    "",
-    params.browserContext ? `## Browser/extract context\n${params.browserContext.trim()}\n` : "",
     "## Prior sub-agent outputs",
     params.priorOutputs.trim() || "(none)",
     "",
-    "Respond with Markdown only: your deliverable for this role (no meta commentary about OpenClaw)."
+    "Respond with Markdown only. Honor SKILL.md and external URLs in the mission pack."
   ].join("\n");
 
   try {
@@ -172,7 +171,7 @@ function concatMergeReport(params: {
   runs: SubAgentRunResult[];
 }): string {
   const parts = [
-    `# Fleet report → Mother agent`,
+    `# Fleet report -> Central Agent`,
     "",
     `**Mission id:** \`${params.missionId}\``,
     `**Lead:** ${params.profile.name} (\`${params.profile.role}\`)`,
@@ -202,7 +201,7 @@ async function synthesizeMergeIfPossible(
         {
           role: "system",
           content:
-            "You are the mother agent synthesizing a fleet. Merge sub-agent outputs into one executive report: goals, decisions, risks, open questions, and ordered next steps. Markdown. Match user language (e.g. Indonesian if mission is Indonesian). Do not invent tool executions."
+            "You are the Central Agent synthesizing a fleet. Merge sub-agent outputs into one executive report: goals, decisions, risks, open questions, and ordered next steps. Markdown. Match user language (e.g. Indonesian if mission is Indonesian). Do not invent tool executions."
         },
         {
           role: "user",
@@ -218,14 +217,15 @@ async function synthesizeMergeIfPossible(
 }
 
 /**
- * Runs each `profile.subAgents` entry **sequentially** (context carries forward), then builds a **merged report** for the mother.
+ * Runs each `profile.subAgents` entry **sequentially** (context carries forward), then builds a **merged report** for the Central Agent.
  * Prefers OpenAI-compatible gateway when configured; otherwise attempts one OpenClaw CLI call per sub-agent.
  */
 export async function runSubAgentFleet(params: {
   missionId: string;
   motherPrompt: string;
   profile: SpecialistAgentProfile;
-  browserContext?: string;
+  /** SKILL.md + URLs + Tavily + mission text for OpenClaw. */
+  openClawContext?: string;
   onProgress?: (label: string) => void;
 }): Promise<{ events: string[]; summary: FleetOrchestrationSummary }> {
   const subs = params.profile.subAgents ?? [];
@@ -259,7 +259,7 @@ export async function runSubAgentFleet(params: {
           profile: params.profile,
           sub,
           priorOutputs: prior,
-          browserContext: params.browserContext
+          openClawContext: params.openClawContext
         });
       } catch (err) {
         compatError = err instanceof Error ? err.message : String(err);
@@ -276,7 +276,7 @@ export async function runSubAgentFleet(params: {
         profile: params.profile,
         sub,
         priorOutputs: prior,
-        browserContext: params.browserContext
+        openClawContext: params.openClawContext
       });
 
     if (preferOpenClaw) {
@@ -326,7 +326,7 @@ export async function runSubAgentFleet(params: {
   const synthesized = await synthesizeMergeIfPossible(params.motherPrompt, params.profile, runs);
   const mergedReport = synthesized
     ? [
-        `# Mother agent — synthesized fleet report`,
+        `# Central Agent - synthesized fleet report`,
         "",
         synthesized.trim(),
         "",

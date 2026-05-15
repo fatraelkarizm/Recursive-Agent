@@ -30,7 +30,7 @@ export function MotherThoughtCloud({ active, current, history }: MotherThoughtCl
       <div className={`thought-orb ${glowClass}`} aria-hidden />
       <div className={`thought-orb thought-orb-delay ${glowClass}`} aria-hidden />
       <div className="relative mx-6 max-w-lg animate-thought-card rounded-2xl border border-white/15 bg-[#0a1628ee] px-6 py-5 shadow-[0_0_60px_rgba(100,255,218,0.14)] backdrop-blur-xl">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-electric/90">Mother agent</p>
+        <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-electric/90">Central Agent</p>
         <p className="mt-2 text-lg font-semibold text-white">{current?.label ?? "Memproses…"}</p>
         {current?.detail ? (
           <p className="mt-2 line-clamp-4 text-sm leading-relaxed text-slate">{current.detail}</p>

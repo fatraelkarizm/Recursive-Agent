@@ -101,7 +101,7 @@ export function SpecialistAgentPanel({ profile, variant = "card" }: SpecialistAg
         {profile.readmeMd && variant !== "embedded" ? (
           <div className="border-t border-white/10 pt-2">
             <div className="mb-1 flex items-center justify-between gap-2">
-              <span className="text-slate">README.md (mother-generated)</span>
+              <span className="text-slate">README.md (Central-generated)</span>
               <button
                 type="button"
                 className="rounded border border-white/15 bg-white/5 px-2 py-0.5 text-[10px] text-electric hover:bg-white/10"

@@ -18,7 +18,7 @@ export function buildMissionGraph(profile: SpecialistAgentProfile): { steps: str
   if (profile.orchestrationMode === "openclaw" || profile.specializations.includes("openclaw-orchestration")) {
     steps.push(
       profile.subAgents?.length
-        ? "Run sub-agent fleet sequentially (LLM gateway or OpenClaw per sub) + merge report to mother"
+        ? "Run sub-agent fleet sequentially (LLM gateway or OpenClaw per sub) + merge report to Central Agent"
         : "Delegate fleet coordination to OpenClaw CLI"
     );
   }

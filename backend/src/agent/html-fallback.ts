@@ -11,7 +11,7 @@ export function buildFallbackHtmlDeliverable(missionPrompt: string): string {
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>${topic} — Mother fallback</title>
+  <title>${topic} — Central fallback</title>
   <style>
     :root { --bg:#050b14; --card:#0f1c2e; --accent:#64ffda; --text:#e8f0ff; --muted:#8ba3c7; }
     * { box-sizing: border-box; margin: 0; padding: 0; }

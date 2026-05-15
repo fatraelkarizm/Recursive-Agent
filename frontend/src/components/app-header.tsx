@@ -14,7 +14,7 @@ export function AppHeader({ status, squadSource }: AppHeaderProps) {
         </div>
         <div>
           <h1 className="text-sm font-semibold tracking-tight text-white sm:text-base">Recursive Agent</h1>
-          <p className="text-[10px] text-slate">Mission control · Mother-driven squad</p>
+          <p className="text-[10px] text-slate">Mission control · Central Agent squad</p>
         </div>
       </div>
       <div className="flex items-center gap-2 text-[11px]">

@@ -30,7 +30,7 @@ This is the central graph or orbit view. It shows missions, sub-agents, tool nod
 - blocked steps
 - tool dependencies
 
-In code today (`frontend/src/components/mission-canvas.tsx`), the canvas is a live `@xyflow/react` board with a trigger node, a mother-agent hub (model / memory / tools affordances), a policy branch, and two downstream action nodes (tool-heavy vs sandbox). Edge labels document the intent of each branch.
+In code today (`frontend/src/components/mission-canvas.tsx`), the canvas is a live `@xyflow/react` board with a trigger node, a Central Agent hub (model / memory / tools affordances), a policy branch, and two downstream action nodes (tool-heavy vs sandbox). Edge labels document the intent of each branch.
 
 ### 2. Mission Stream
 This is the conversational and command layer. It shows user prompts, agent responses, structured outputs, and tool summaries.
@@ -54,9 +54,9 @@ The current terminal card (`frontend/src/components/terminal-drawer.tsx`) mirror
 
 ## Layout Blueprint
 ### Desktop (implemented)
-- **Left rail (`workspace-rail.tsx`)** — Recipes/prompt starters plus an “API & integrations” strip. This answers “what can I connect or reuse?” without hiding HTTP/MCP context in a modal.
+- **Left rail (`workspace-rail.tsx`)** — API & integrations strip only. Recipes were removed so the user starts from one explicit mission, while integration status remains visible without hiding HTTP/MCP context in a modal.
 - **Center stage** — Mission canvas graph with zoom/pan (`@xyflow/react`), plus a two-column row directly underneath for **Vitals** and **Terminal/Audit**.
-- **Right column** — **Control chat** for steering the mother agent, launching missions, and reading structured responses; the generated specialist profile sits directly under the composer so configuration stays adjacent to conversation.
+- **Right column** — **Control chat** for steering the Central Agent, launching missions, and reading structured responses; the generated specialist profile sits directly under the composer so configuration stays adjacent to conversation.
 
 ### Desktop (future-friendly)
 - Allow collapsing the rails on smaller laptop widths while keeping the canvas readable.

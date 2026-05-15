@@ -110,6 +110,34 @@ export async function updateCanvasAgentProfile(
   });
 }
 
+export async function deleteCanvasAgent(agentId: string): Promise<boolean> {
+  const db = getPrismaClient();
+  if (!db) return false;
+  try {
+    await db.canvasAgent.delete({ where: { id: agentId } });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function deleteAllCanvasAgents(): Promise<number> {
+  const db = getPrismaClient();
+  if (!db) return 0;
+  const res = await db.canvasAgent.deleteMany({});
+  return res.count;
+}
+
+/** Remove agents not tied to the given mission (keeps current mission squad on canvas). */
+export async function deleteCanvasAgentsExceptMission(missionId: string): Promise<number> {
+  const db = getPrismaClient();
+  if (!db) return 0;
+  const res = await db.canvasAgent.deleteMany({
+    where: { NOT: { missionId } }
+  });
+  return res.count;
+}
+
 export async function updateCanvasAgentPosition(
   agentId: string,
   position: { x: number; y: number }

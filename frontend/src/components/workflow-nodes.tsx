@@ -60,7 +60,7 @@ export const MotherAgentNode = memo(function MotherAgentNode({ data }: NodeProps
           }}
           className="mt-2 w-full rounded-lg border border-electric/40 bg-electric/10 px-2 py-1.5 text-[10px] font-semibold text-electric hover:bg-electric/20"
         >
-          Mother dashboard
+          Central dashboard
         </button>
       ) : null}
       <Handle

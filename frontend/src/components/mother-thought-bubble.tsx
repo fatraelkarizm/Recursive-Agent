@@ -19,7 +19,7 @@ const PHASE_DOT: Record<string, string> = {
   done: "bg-emerald-300"
 };
 
-/** Compact thought UI anchored above the Mother node (via NodeToolbar). */
+/** Compact thought UI anchored above the Central Agent node (via NodeToolbar). */
 export function MotherThoughtBubble({ current, history }: MotherThoughtBubbleProps) {
   const dot = current ? PHASE_DOT[current.phase] ?? "bg-violet-400" : "bg-violet-400";
 
@@ -27,7 +27,7 @@ export function MotherThoughtBubble({ current, history }: MotherThoughtBubblePro
     <div className="pointer-events-none w-[min(300px,72vw)] animate-thought-card rounded-xl border border-electric/35 bg-[#0a1628f2] px-3.5 py-3 shadow-[0_8px_40px_rgba(100,255,218,0.18)] backdrop-blur-md">
       <div className="flex items-center gap-2">
         <span className={`h-2 w-2 shrink-0 animate-pulse rounded-full ${dot}`} />
-        <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-electric/90">Mother</p>
+        <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-electric/90">Central</p>
       </div>
       <p className="mt-1.5 text-sm font-semibold leading-snug text-white">{current?.label ?? "Memproses…"}</p>
       {current?.detail ? (

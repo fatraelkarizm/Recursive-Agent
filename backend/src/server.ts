@@ -8,7 +8,13 @@ import { logger } from "./logging";
 import { runMission } from "./agent/mother-agent";
 import { tavilyExtractOne } from "./capabilities/tavily-extract-one";
 import { getPublicRuntimeDiagnostics } from "./public-runtime-diagnostics";
-import { listCanvasAgents, updateCanvasAgentPosition } from "./db/agent-store";
+import {
+  deleteAllCanvasAgents,
+  deleteCanvasAgent,
+  deleteCanvasAgentsExceptMission,
+  listCanvasAgents,
+  updateCanvasAgentPosition
+} from "./db/agent-store";
 
 // Load env robustly:
 // - sometimes the server is started from repo root vs from `backend/`
@@ -78,6 +84,32 @@ app.patch("/api/agents/:id/position", async (req, res) => {
   }
 });
 
+app.delete("/api/agents/:id", async (req, res) => {
+  const id = String(req.params.id ?? "").trim();
+  if (!id) return res.status(400).json({ message: "Missing agent id" });
+  try {
+    const ok = await deleteCanvasAgent(id);
+    if (!ok) return res.status(404).json({ message: "Agent not found or DB unavailable" });
+    return res.json({ ok: true });
+  } catch (error) {
+    logger.error({ error, id }, "Failed to delete canvas agent");
+    return res.status(500).json({ message: "Failed to delete agent" });
+  }
+});
+
+app.delete("/api/agents", async (req, res) => {
+  const keepMission = typeof req.query.keepMission === "string" ? req.query.keepMission.trim() : "";
+  try {
+    const deleted = keepMission
+      ? await deleteCanvasAgentsExceptMission(keepMission)
+      : await deleteAllCanvasAgents();
+    return res.json({ ok: true, deleted });
+  } catch (error) {
+    logger.error({ error }, "Failed to bulk delete canvas agents");
+    return res.status(500).json({ message: "Failed to delete agents" });
+  }
+});
+
 /** All persisted canvas agents (survives page refresh). */
 app.get("/api/agents", async (_req, res) => {
   try {
@@ -96,7 +128,7 @@ app.get("/api/agents", async (_req, res) => {
   }
 });
 
-/** Tavily Extract preview for Mother dashboard "Services" tab (requires TAVILY_API_KEY). */
+/** Tavily Extract preview for Central dashboard "Services" tab (requires TAVILY_API_KEY). */
 app.post("/api/preview-extract", async (req, res) => {
   const parsed = previewExtractSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -133,7 +165,7 @@ app.post("/api/missions", async (req, res) => {
   }
 });
 
-/** SSE: live Mother phases (thought cloud) + final MissionResult on `done`. */
+/** SSE: live Central Agent phases (thought cloud) + final MissionResult on `done`. */
 app.post("/api/missions/stream", async (req, res) => {
   const parsed = missionSchema.safeParse(req.body);
   if (!parsed.success) {

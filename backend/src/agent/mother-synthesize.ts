@@ -122,16 +122,16 @@ function toProfile(s: z.infer<typeof specialistLiteSchema>, missionPrompt: strin
 
   attachSpecialistArtifacts(profile, missionPrompt);
   if (s.readmeOutline?.trim()) {
-    profile.readmeMd += ["", "## Rencana Mother", "", s.readmeOutline.trim(), ""].join("\n");
+    profile.readmeMd += ["", "## Rencana Central Agent", "", s.readmeOutline.trim(), ""].join("\n");
     profile.skillMd =
       (profile.skillMd ?? "") +
-      ["", "## Rencana Mother", "", s.readmeOutline.trim(), ""].join("\n");
+      ["", "## Rencana Central Agent", "", s.readmeOutline.trim(), ""].join("\n");
   }
   return profile;
 }
 
 const SYSTEM_PROMPT = [
-  "You are the Mother Agent of Recursive Agent — a mission control orchestrator.",
+  "You are the Central Agent of Recursive Agent — a mission control orchestrator.",
   "Design a small squad of specialist agents for ONE user mission. Think from first principles; do NOT use fixed templates.",
   "Return ONLY one valid JSON object. No markdown outside JSON. No code fences inside string values.",
   "Schema:",
@@ -178,7 +178,7 @@ async function callMotherPlan(effectivePrompt: string, temperature: number): Pro
 }
 
 /**
- * Mother agent designs the specialist squad via LLM (not rule-based templates).
+ * Central Agent designs the specialist squad via LLM (not rule-based templates).
  * Falls back to legacy inference only when the gateway is unavailable or JSON is invalid.
  */
 export async function synthesizeSquadFromMother(payload: MissionPayload): Promise<{
@@ -193,7 +193,7 @@ export async function synthesizeSquadFromMother(payload: MissionPayload): Promis
     const squad = inferSpecialistSquad(effectivePrompt);
     return {
       squad,
-      motherBrief: "_Mother LLM tidak tersedia — squad dari aturan internal (fallback)._",
+      motherBrief: "_Central Agent LLM tidak tersedia — squad dari aturan internal (fallback)._",
       source: "fallback-rules"
     };
   }
@@ -213,7 +213,7 @@ export async function synthesizeSquadFromMother(payload: MissionPayload): Promis
       return { squad, motherBrief: parsed.motherBrief.trim(), source: "mother-llm" };
     } catch (err) {
       lastError = err instanceof Error ? err.message : String(err);
-      logger.warn({ err, attempt: attempt.label }, "Mother squad synthesis parse failed");
+      logger.warn({ err, attempt: attempt.label }, "Central Agent squad synthesis parse failed");
     }
   }
 
@@ -221,7 +221,7 @@ export async function synthesizeSquadFromMother(payload: MissionPayload): Promis
   return {
     squad,
     motherBrief:
-      "_Mother tidak bisa mem-parse rencana LLM; squad sementara dari fallback aturan. HTML akan tetap dicoba lewat langkah deliverable terpisah._",
+      "_Central Agent tidak bisa mem-parse rencana LLM; squad sementara dari fallback aturan. HTML akan tetap dicoba lewat langkah deliverable terpisah._",
     source: "fallback-rules",
     parseError: lastError.slice(0, 200)
   };

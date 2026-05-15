@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { saveCanvasAgentPosition } from "@/lib/api";
 import { loadAllCanvasPositions, loadCanvasPosition, saveCanvasPosition } from "@/lib/canvas-positions";
+import { resolveNodeCollisions } from "@/lib/canvas-layout";
 import type { MissionProgressEvent } from "@/lib/types";
 import {
   Background,
@@ -114,7 +115,7 @@ const STATIC_BASE_NODES: Node[] = [
     id: "mother",
     type: "mother",
     position: { x: 260, y: 90 },
-    data: { label: "Mother agent (tools)" }
+    data: { label: "Central Agent (tools)" }
   },
   {
     id: "branch",
@@ -287,12 +288,18 @@ function FlowSurface({
         });
         list = [...base, ...specNodes];
 
+        const resolvedMissionId =
+          activeMissionId ??
+          [...new Set(specialists.map((p) => p.missionId).filter(Boolean) as string[])].at(-1) ??
+          null;
         const activeLead =
-          specialists.find((p) => p.missionId === activeMissionId) ?? lead;
-        const subs =
-          activeMissionId && activeLead.missionId === activeMissionId
-            ? (activeLead.subAgents ?? [])
-            : [];
+          (resolvedMissionId
+            ? specialists.find((p) => p.missionId === resolvedMissionId && (p.subAgents?.length ?? 0) > 0)
+            : undefined) ??
+          specialists.find((p) => (p.subAgents?.length ?? 0) > 0) ??
+          specialists.find((p) => p.missionId === resolvedMissionId) ??
+          lead;
+        const subs = activeLead.subAgents ?? [];
 
         if (subs.length > 0) {
           const leadIdx = specialists.findIndex(
@@ -319,7 +326,7 @@ function FlowSurface({
         }
       }
 
-      return list.map((node) => {
+      const withData = list.map((node) => {
         const baseData: Record<string, unknown> = { ...(node.data as Record<string, unknown>), pulse };
         let data: Record<string, unknown> = baseData;
         if (node.id === "mother") {
@@ -337,6 +344,8 @@ function FlowSurface({
           data
         };
       });
+
+      return resolveNodeCollisions(withData);
     });
 
     setEdges(() => {
@@ -354,12 +363,18 @@ function FlowSurface({
         style: { stroke: "#a78bfa" }
       }));
 
+      const resolvedMissionId =
+        activeMissionId ??
+        [...new Set(specialists.map((p) => p.missionId).filter(Boolean) as string[])].at(-1) ??
+        null;
       const activeLead =
-        specialists.find((p) => p.missionId === activeMissionId) ?? lead;
-      const subs =
-        activeMissionId && activeLead.missionId === activeMissionId
-          ? (activeLead.subAgents ?? [])
-          : [];
+        (resolvedMissionId
+          ? specialists.find((p) => p.missionId === resolvedMissionId && (p.subAgents?.length ?? 0) > 0)
+          : undefined) ??
+        specialists.find((p) => (p.subAgents?.length ?? 0) > 0) ??
+        specialists.find((p) => p.missionId === resolvedMissionId) ??
+        lead;
+      const subs = activeLead.subAgents ?? [];
       if (subs.length === 0) {
         return [...base, ...motherToSpecs];
       }
@@ -461,7 +476,7 @@ export function MissionCanvas({
         </span>
       </header>
       <p className="border-b border-white/10 px-4 py-2 text-[10px] leading-relaxed text-slate sm:px-5">
-        Node <span className="text-electric">Mother</span>: tombol <strong className="text-white">Mother dashboard</strong>
+        Node <span className="text-electric">Central Agent</span>: tombol <strong className="text-white">Central dashboard</strong>
         . Klik <span className="text-violet-300">specialist</span> / <span className="text-fuchsia-300">sub-agent</span>{" "}
         untuk dashboard mereka.
       </p>

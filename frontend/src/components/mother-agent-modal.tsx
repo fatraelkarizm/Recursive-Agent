@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { BookOpen, Layers, Loader2, X } from "lucide-react";
+import { MotherAgentManagement } from "@/components/mother-agent-management";
 import { fetchRuntimeDiagnostics, previewExtract } from "@/lib/api";
+import type { CanvasViewMode } from "@/lib/canvas-agent-prefs";
 import type {
   FleetOrchestrationSummary,
   PublicRuntimeDiagnostics,
@@ -44,10 +46,11 @@ export function motherBundleToMissionExtras(bundle: MotherMissionBundle): {
   };
 }
 
-type TabId = "overview" | "config" | "services" | "context" | "task" | "hasil";
+type TabId = "overview" | "agents" | "config" | "services" | "context" | "task" | "hasil";
 
 const TABS: { id: TabId; label: string }[] = [
   { id: "overview", label: "Ringkas" },
+  { id: "agents", label: "Kelola agent" },
   { id: "config", label: "Config" },
   { id: "services", label: "Services" },
   { id: "context", label: "Konteks & iterasi" },
@@ -63,6 +66,15 @@ type MotherAgentModalProps = {
   missionPrompt: string;
   specialists: SpecialistAgentProfile[];
   fleetSummary: FleetOrchestrationSummary | null;
+  activeMissionId?: string | null;
+  canvasViewMode: CanvasViewMode;
+  onCanvasViewModeChange: (mode: CanvasViewMode) => void;
+  hiddenAgentIds: Set<string>;
+  onToggleHiddenAgent: (persistedId: string) => void;
+  onDeleteAgent: (persistedId: string) => void;
+  onKeepLatestMissionAgents: () => void;
+  onClearAllAgents: () => void;
+  agentsBusy?: boolean;
 };
 
 export function MotherAgentModal({
@@ -72,7 +84,16 @@ export function MotherAgentModal({
   onApply,
   missionPrompt,
   specialists,
-  fleetSummary
+  fleetSummary,
+  activeMissionId = null,
+  canvasViewMode,
+  onCanvasViewModeChange,
+  hiddenAgentIds,
+  onToggleHiddenAgent,
+  onDeleteAgent,
+  onKeepLatestMissionAgents,
+  onClearAllAgents,
+  agentsBusy
 }: MotherAgentModalProps) {
   const [tab, setTab] = useState<TabId>("overview");
   const [local, setLocal] = useState<MotherMissionBundle>(bundle);
@@ -194,9 +215,9 @@ export function MotherAgentModal({
       >
         <header className="flex shrink-0 items-start justify-between gap-3 border-b border-white/10 px-5 py-4">
           <div className="min-w-0">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-violet-300">Mother agent</p>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-violet-300">Central Agent</p>
             <h2 id="mother-dash-title" className="truncate text-xl font-semibold text-white sm:text-2xl">
-              Mother dashboard
+              Central dashboard
             </h2>
             <p className="mt-1 text-xs text-slate">
               Konteks, URL, Services (baca docs), dan catatan review digabung ke <strong className="text-white">Run mission</strong> berikutnya.
@@ -230,7 +251,7 @@ export function MotherAgentModal({
           {tab === "overview" && (
             <div className="space-y-3">
               <p>
-                Mother merakit <strong className="text-white">squad specialist</strong>, menjalankan{" "}
+                Central Agent merakit <strong className="text-white">squad specialist</strong>, menjalankan{" "}
                 <strong className="text-white">fleet sub-agent</strong>, lalu tool route &amp; sandbox. Gunakan tab{" "}
                 <span className="text-violet-300">Konteks &amp; iterasi</span> untuk pengetahuan + URL; tab{" "}
                 <span className="text-violet-300">Services</span> untuk baca dokumentasi / berita lewat Tavily Extract
@@ -241,6 +262,21 @@ export function MotherAgentModal({
                 → Run mission dari chat → baca Hasil di sini atau buka dashboard specialist/sub.
               </p>
             </div>
+          )}
+
+          {tab === "agents" && (
+            <MotherAgentManagement
+              agents={specialists.filter((s) => s.role !== "pending")}
+              activeMissionId={activeMissionId}
+              hiddenIds={hiddenAgentIds}
+              viewMode={canvasViewMode}
+              onViewModeChange={onCanvasViewModeChange}
+              onToggleHidden={onToggleHiddenAgent}
+              onDeleteAgent={onDeleteAgent}
+              onKeepLatestMission={onKeepLatestMissionAgents}
+              onClearAll={onClearAllAgents}
+              busy={agentsBusy}
+            />
           )}
 
           {tab === "config" && (
@@ -374,7 +410,7 @@ export function MotherAgentModal({
                 </span>
               </label>
               <div>
-                <label className="text-xs font-semibold text-violet-200">Review / uji → mother (putaran berikutnya)</label>
+                <label className="text-xs font-semibold text-violet-200">Review / uji → Central Agent (putaran berikutnya)</label>
                 <textarea
                   rows={5}
                   value={local.motherReviewNotes}
@@ -403,7 +439,7 @@ export function MotherAgentModal({
             <div className="space-y-4">
               {fleetSummary?.mergedReport ? (
                 <>
-                  <p className="text-xs text-slate">Laporan gabungan fleet → mother (ringkas).</p>
+                  <p className="text-xs text-slate">Laporan gabungan fleet → Central Agent (ringkas).</p>
                   <pre className="max-h-[min(48vh,440px)] overflow-auto whitespace-pre-wrap rounded-xl border border-white/10 bg-black/50 p-3 font-mono text-[12px] text-slate-100">
                     {fleetSummary.mergedReport.slice(0, 8000)}
                     {fleetSummary.mergedReport.length > 8000 ? "\n\n…(potong)" : ""}

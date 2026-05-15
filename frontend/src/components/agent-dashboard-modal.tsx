@@ -388,7 +388,7 @@ export function AgentDashboardModal({
               ) : null}
 
               <div className="border-t border-white/10 pt-3 text-xs">
-                <p className="mb-2 font-semibold text-white">Profil agent (dari mother)</p>
+                <p className="mb-2 font-semibold text-white">Profil agent (dari Central Agent)</p>
                 {!isSub && specialist ? (
                   <dl className="grid gap-1.5 sm:grid-cols-[140px_1fr]">
                     <dt className="text-slate">Nama</dt>
@@ -476,7 +476,7 @@ export function AgentDashboardModal({
             <div className="space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-xs text-slate">
-                  Playbook agent: skills, tools, larangan — dipakai Mother & fleet.
+                  Playbook agent: skills, tools, larangan — dipakai Central Agent & fleet.
                 </p>
                 {skillMd.trim() ? (
                   <button
@@ -505,8 +505,8 @@ export function AgentDashboardModal({
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-xs text-slate">
                   {isSub
-                    ? "README.md lead specialist (Mother: skills, tools, starter HTML/CSS, …)."
-                    : "README.md yang di-generate mother untuk specialist ini."}
+                    ? "README.md lead specialist (Central Agent: skills, tools, starter HTML/CSS, …)."
+                    : "README.md yang di-generate Central Agent untuk specialist ini."}
                 </p>
                 {readmeMd.trim() ? (
                   <button
@@ -598,7 +598,7 @@ export function AgentDashboardModal({
                 <p className="rounded-lg border border-white/10 bg-black/30 p-4 text-sm text-slate">
                   Tidak ada fence <code className="text-electric">{"```html ... ```"}</code> di README. Kalau hanya
                   punya link situs, pakai daftar <strong className="text-white">Link di README</strong> di atas (bila
-                  URL terdeteksi). Minta mother menaruh HTML di fence atau URL lengkap di README.
+                  URL terdeteksi). Minta Central Agent menaruh HTML di fence atau URL lengkap di README.
                 </p>
               )}
             </div>
@@ -609,7 +609,7 @@ export function AgentDashboardModal({
               {isActiveMissionLead && fleetForView?.mergedReport ? (
                 <>
                   <p className="text-xs text-slate">
-                    Lead specialist — laporan gabungan mother (scout → worker → reviewer + merge).
+                    Lead specialist — laporan gabungan Central Agent (scout → worker → reviewer + merge).
                   </p>
                   <pre className="max-h-[min(62vh,640px)] overflow-auto whitespace-pre-wrap rounded-lg border border-white/10 bg-black/50 p-3 font-mono text-[12px] text-slate-100 sm:text-[13px]">
                     {fleetForView.mergedReport}

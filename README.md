@@ -5,20 +5,20 @@ OpenClaw Agenthon 2026 project docs for **Recursive Agent**, a multi-agent produ
 ## Overview
 The problem this project solves is simple: most AI agents are too static, too generic, and are usually built only by developers for developers. People can chat with them, but they cannot easily shape the agent into something purpose-built for their own workflow.
 
-Recursive Agent changes that. A user can describe what they want in plain chat, and the mother agent turns that request into a specialist agent with a clear role, clear instructions, and configurable settings. The result is not a one-size-fits-all agent. It is a custom agent built for one job, such as coding, scraping, research, recommendations, workflow automation, or other specialized tasks.
+Recursive Agent changes that. A user can describe what they want in plain chat, and the Central Agent turns that request into a specialist agent with a clear role, clear instructions, and configurable settings. The result is not a one-size-fits-all agent. It is a custom agent built for one job, such as coding, scraping, research, recommendations, workflow automation, or other specialized tasks.
 
 The product is designed to feel like a mission control dashboard rather than a hidden chat bot. It makes the agent structure visible, editable, and easy to understand.
 
 ## Current Repository Status
 This repository is a **working monorepo slice**:
 - **`frontend/`** — Next.js Latest dashboard with a three-column mission control UI, React Flow workflow canvas, and REST client to the worker.
-- **`backend/`** — Express worker with a mother-agent mission path, stub tool routing, and optional E2B wiring (see `backend/src`).
+- **`backend/`** — Express worker with a Central Agent mission path, stub tool routing, and optional E2B wiring (see `backend/src`).
 
 
 ## Product Story
 The user experience should feel like this:
-1. The user chats with the mother agent.
-2. The mother agent asks for the goal and converts it into a specialist agent.
+1. The user chats with the Central Agent.
+2. The Central Agent asks for the goal and converts it into a specialist agent.
 3. The system generates the agent profile, instructions, and tool access.
 4. A configuration panel appears so the user can edit the agent manually if needed.
 5. The user can inspect what the agent does, what it knows, and what tools it can use.
@@ -32,7 +32,7 @@ The user experience should feel like this:
 - Lets the user manually adjust the agent instructions, settings, and API key references.
 - Uses external tools for research, execution, and integration work.
 - Shows a live operational dashboard with mission state, logs, runtime health, and budget awareness.
-- **Automatic orchestration** (default): every mission **schedules** the scout/worker/reviewer fleet and builds a merged mother report in the mission graph. **Sub-agent turns only produce real LLM output** when an OpenAI-compatible gateway (`OPENAI_COMPAT_BASE_URL` + bearer) or a working **OpenClaw** fallback is available; otherwise events show `source=skipped` with a placeholder — the mission still completes (graceful degradation). Set `AUTO_ORCHESTRATION=0` in `backend/.env` to orchestrate only when the user asks for fleet/multi-agent explicitly.
+- **Automatic orchestration** (default): every mission **schedules** the scout/worker/reviewer fleet and builds a merged Central Agent report in the mission graph. **Sub-agent turns only produce real LLM output** when an OpenAI-compatible gateway (`OPENAI_COMPAT_BASE_URL` + bearer) or a working **OpenClaw** fallback is available; otherwise events show `source=skipped` with a placeholder — the mission still completes (graceful degradation). Set `AUTO_ORCHESTRATION=0` in `backend/.env` to orchestrate only when the user asks for fleet/multi-agent explicitly.
 - Keeps the system bounded with circuit breakers, budgets, and state checkpoints.
 
 ## Why This Fits The Hackathon
@@ -44,15 +44,15 @@ The user experience should feel like this:
 
 ## Mission Control UI (implemented layout)
 The dashboard follows a **visual workflow builder** metaphor (similar to n8n-style canvases):
-- **Left rail** — Recipes that prefill prompts plus an “API & integrations” strip (mother worker route, MCP, E2B, env files). This is the “palette” for what the system can connect to.
-- **Center canvas** — `@xyflow/react` graph: trigger → mother agent (model / memory / tools) → policy branch → tool-heavy vs sandbox paths. Status rings reflect the latest mission state.
+- **Left rail** — API & integrations strip (Central Agent worker route, OpenClaw, Tavily, runtime config, env files). Recipes were removed so the product stays focused on one user-written mission instead of canned prompts.
+- **Center canvas** — `@xyflow/react` graph: trigger → Central Agent (model / memory / tools) → policy branch → tool-heavy vs sandbox paths. Status rings reflect the latest mission state.
 - **Right column** — **Control chat**: send a mission, read assistant handoffs, and inspect the generated specialist profile under the thread.
 - **Agent dashboard** — Per specialist/sub-agent: tabs include **Config** (worker model/env snapshot via `GET /api/runtime-config` — no secret values), README, live HTML preview, and results.
 - **Below the canvas** — Vitals plus a compact terminal/audit readout fed by the latest assistant message.
 
 ## Suggested Tech Stack
 - Frontend and API shell: Next.js Latest with TypeScript
-- Orchestration: LangGraph.js and an OpenClaw-style mother agent layer
+- Orchestration: LangGraph.js and an OpenClaw-style Central Agent layer
 - Tool access: Model Context Protocol servers and Vercel AI SDK clients
 - Execution sandbox: E2B
 - Persistence: PostgreSQL plus Redis or queue support
@@ -64,7 +64,7 @@ The dashboard follows a **visual workflow builder** metaphor (similar to n8n-sty
 frontend/src/app          # Next.js routes and shell
 frontend/src/components   # Mission UI modules (canvas, chat, rail, vitals, terminal)
 frontend/src/lib          # API client, types, helpers
-backend/src               # Express server, mother agent, tools, sandbox stubs
+backend/src               # Express server, Central Agent, tools, sandbox stubs
 backend/prisma            # PostgreSQL schema and migration for missions/profiles/events
 docs/                     # Product + build documentation (STEP.md is the runbook)
 ```

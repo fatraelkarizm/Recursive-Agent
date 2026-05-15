@@ -92,49 +92,67 @@ async function chatCompletionOnce(params: {
   }
 }
 
+function isAbortLike(raw: string): boolean {
+  return /aborted|abort|timeout|timed out/i.test(raw);
+}
+
 export async function openAiCompatibleChatCompletion(params: {
   messages: ChatMessage[];
   maxTokens?: number;
   temperature?: number;
-  /** Override default OPENAI_COMPAT_TIMEOUT_MS (Mother/long jobs need more). */
+  /** Override default OPENAI_COMPAT_TIMEOUT_MS (Central Agent/long jobs need more). */
   timeoutMs?: number;
+  /** Force a specific model id (e.g. gemini fallback). */
+  model?: string;
 }): Promise<string> {
   const base = process.env.OPENAI_COMPAT_BASE_URL?.trim();
   const apiKey = (process.env.OPENAI_COMPAT_API_KEY ?? process.env.DEEPSEEK_API_KEY)?.trim();
-  const model = process.env.OPENAI_COMPAT_MODEL?.trim() || "qwen3.6-plus";
+  const primaryModel = params.model?.trim() || process.env.OPENAI_COMPAT_MODEL?.trim() || "qwen3.6-plus";
 
   if (!base || !apiKey) {
     throw new Error("OPENAI_COMPAT_BASE_URL and a bearer key (OPENAI_COMPAT_API_KEY or DEEPSEEK_API_KEY) are required");
   }
 
-  const timeoutMs =
+  const baseTimeout =
     params.timeoutMs ??
     Number(process.env.OPENAI_COMPAT_TIMEOUT_MS ?? "45000");
   const maxTokens = params.maxTokens ?? 200;
   const temperature = params.temperature ?? 0.7;
-  const request = {
-    base,
-    apiKey,
-    messages: params.messages,
-    maxTokens,
-    temperature,
-    timeoutMs
-  };
 
-  let result = await chatCompletionOnce({ ...request, model });
-  if (result.ok) return result.text;
-
-  const fallbackModel = resolveFallbackModel(model);
-  if (fallbackModel && fallbackModel !== model && isDeepseekUpstreamExhausted(result.status, result.raw)) {
-    logger.warn(
-      { primary: model, fallback: fallbackModel },
-      "OpenAI-compat primary model unavailable (upstream DeepSeek balance); retrying fallback model"
-    );
-    result = await chatCompletionOnce({ ...request, model: fallbackModel });
-    if (result.ok) return result.text;
+  const modelsToTry = [primaryModel];
+  const fb = resolveFallbackModel(primaryModel);
+  if (fb && fb !== primaryModel && !modelsToTry.includes(fb)) {
+    modelsToTry.push(fb);
   }
 
-  throw new Error(`HTTP ${result.status}: ${result.raw.slice(0, 500)}`);
+  let lastErr = "unknown";
+
+  for (const model of modelsToTry) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const timeoutMs = baseTimeout + attempt * 30_000;
+      const result = await chatCompletionOnce({
+        base,
+        apiKey,
+        model,
+        messages: params.messages,
+        maxTokens,
+        temperature,
+        timeoutMs
+      });
+      if (result.ok) return result.text;
+
+      lastErr = `HTTP ${result.status}: ${result.raw.slice(0, 500)}`;
+      const retryable =
+        isAbortLike(result.raw) ||
+        isDeepseekUpstreamExhausted(result.status, result.raw) ||
+        result.status >= 500;
+
+      if (!retryable) break;
+      logger.warn({ model, attempt, status: result.status }, "OpenAI-compat retry");
+    }
+  }
+
+  throw new Error(lastErr);
 }
 
 /** One short assistant paragraph to append to specialist README when compat is enabled. */

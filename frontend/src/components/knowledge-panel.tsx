@@ -31,25 +31,25 @@ export function KnowledgePanel({
     <section className="flex h-full min-h-[200px] flex-col rounded-xl border border-white/10 bg-[#0c1a2e]/80 shadow-inner">
       <header className="border-b border-white/10 px-4 py-3">
         <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-electric/80">Knowledge</p>
-        <h3 className="text-sm font-semibold text-white">Konteks Mother & misi</h3>
+        <h3 className="text-sm font-semibold text-white">Konteks Central Agent & misi</h3>
       </header>
       <div className="flex-1 space-y-3 overflow-y-auto px-4 py-3 text-xs leading-relaxed">
         {motherBrief ? (
           <article className="rounded-lg border border-violet-400/25 bg-violet-500/10 p-3">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-violet-200/90">Mother brief</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-violet-200/90">Central brief</p>
             <p className="mt-1.5 whitespace-pre-wrap text-slate/95">{motherBrief}</p>
             {squadSource ? (
               <p className="mt-2 text-[10px] text-slate/70">Sumber squad: {squadSource}</p>
             ) : null}
           </article>
         ) : (
-          <p className="text-slate/80">Jalankan mission — Mother akan menulis ringkasan pemikiran di sini.</p>
+          <p className="text-slate/80">Jalankan mission — Central Agent akan menulis ringkasan pemikiran di sini.</p>
         )}
 
         {motherReview ? (
           <article className="rounded-lg border border-amber-400/25 bg-amber-500/10 p-3">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-amber-100/90">
-              Mother review
+              Central review
             </p>
             <p className="mt-1.5 whitespace-pre-wrap text-slate/95">{motherReview}</p>
           </article>

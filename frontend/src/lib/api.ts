@@ -39,6 +39,21 @@ export async function previewExtract(payload: { url: string; query?: string }): 
   return data;
 }
 
+export async function deleteCanvasAgent(agentId: string): Promise<void> {
+  const response = await fetch(`${BACKEND_URL}/api/agents/${encodeURIComponent(agentId)}`, {
+    method: "DELETE"
+  });
+  if (!response.ok) throw new Error("Failed to delete agent");
+}
+
+export async function clearCanvasAgents(keepMissionId?: string): Promise<number> {
+  const q = keepMissionId ? `?keepMission=${encodeURIComponent(keepMissionId)}` : "";
+  const response = await fetch(`${BACKEND_URL}/api/agents${q}`, { method: "DELETE" });
+  if (!response.ok) throw new Error("Failed to clear agents");
+  const data = (await response.json()) as { deleted?: number };
+  return data.deleted ?? 0;
+}
+
 export async function saveCanvasAgentPosition(
   agentId: string,
   position: { x: number; y: number }
@@ -59,7 +74,10 @@ export async function fetchCanvasAgents(): Promise<StoredCanvasAgent[]> {
     throw new Error("Failed to load agents");
   }
   const data = (await response.json()) as { agents: StoredCanvasAgent[] };
-  return data.agents ?? [];
+  const agents = data.agents ?? [];
+  return agents.sort(
+    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+  );
 }
 
 export async function createMission(payload: MissionRequest): Promise<MissionResponse> {

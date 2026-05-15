@@ -1,6 +1,6 @@
-# OpenClaw + mother-agent orchestration
+# OpenClaw + Central Agent orchestration
 
-The Recursive Agent **mother** can mark a mission as **OpenClaw-orchestrated** and either (a) run a **sequential sub-agent fleet** with merged report, or (b) when there are no `subAgents`, send a single plan-style message to OpenClaw.
+The Recursive Agent **Central Agent** can mark a mission as **OpenClaw-orchestrated** and either (a) run a **sequential sub-agent fleet** with merged report, or (b) when there are no `subAgents`, send a single plan-style message to OpenClaw.
 
 This is intentionally thin glue: the hackathon app stays in `backend/`, while OpenClaw stays your installed toolchain (`openclaw` on `PATH`, plugins in `~/.openclaw/openclaw.json`). See also [MEM9_OPENCLAW.md](./MEM9_OPENCLAW.md) for mem9 memory plugin notes.
 
@@ -11,9 +11,9 @@ When the lead profile has **`subAgents[]`** (scout / worker / reviewer), `backen
 1. Runs each sub-agent **in order**; each step receives the user mission, optional Tavily browser context, and **cumulative prior sub outputs**.
 2. Prefers **`OPENAI_COMPAT_*`** (SumoPod-style chat completions) when configured — reliable for demos and CI without a local OpenClaw model.
 3. Otherwise runs **one OpenClaw CLI call per sub-agent** with a dedicated `--session-id` suffix (`…-<subId>`).
-4. Builds **`fleetSummary.mergedReport`**: stitched Markdown of all runs, plus an optional **mother synthesis** pass (second LLM call) when the compat gateway is available.
+4. Builds **`fleetSummary.mergedReport`**: stitched Markdown of all runs, plus an optional **Central Agent synthesis** pass (second LLM call) when the compat gateway is available.
 
-The HTTP response includes `fleetSummary` for the UI (control panel shows “Mother — merged fleet report”).
+The HTTP response includes `fleetSummary` for the UI (control panel shows the Central Agent merged fleet report).
 
 ## When orchestration runs
 
@@ -50,7 +50,7 @@ The worker then runs (in order):
 | `OPENAI_COMPAT_TIMEOUT_MS` | Timeout HTTP (default `45000`). |
 | `OPENCLAW_TIMEOUT_MS` | CLI timeout (default `120000`). |
 | `FLEET_MAX_TOKENS_PER_SUB` | Optional — cap tokens per sub-agent compat completion (default `1400`). |
-| `FLEET_MERGE_MAX_TOKENS` | Optional — cap tokens for mother merge synthesis (default `2200`). |
+| `FLEET_MERGE_MAX_TOKENS` | Optional — cap tokens for Central Agent merge synthesis (default `2200`). |
 | `BROWSER_AUTOMATION` | Set to `0` to skip the Tavily “web read” step (misnamed for backward compat). |
 | `BROWSER_DEFAULT_URL` | Fallback URL when the prompt has no `http(s)` link. |
 
@@ -132,7 +132,7 @@ OPENAI_COMPAT_API_KEY=sk-...
 OPENAI_COMPAT_MODEL=deepseek/deepseek-v4-pro
 ```
 
-Jika ini ter-set, **mother** akan (best-effort) memanggil gateway itu sekali per misi dan menambahkan paragraf singkat ke **README** spesialis; kegagalan jaringan tidak memutus misi.
+Jika ini ter-set, **Central Agent** akan (best-effort) memanggil gateway itu sekali per misi dan menambahkan paragraf singkat ke **README** spesialis; kegagalan jaringan tidak memutus misi.
 
 ## Troubleshooting OpenClaw CLI
 

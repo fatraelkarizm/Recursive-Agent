@@ -119,16 +119,59 @@ async function runSubViaOpenAiCompat(params: {
   reviewFeedback?: string;
 }): Promise<string | null> {
   if (!isOpenAiCompatConfigured()) return null;
+  const roleInstructions = params.sub.role.includes("scout")
+    ? [
+        "As SCOUT, your job is to research, analyze, and provide a structured intelligence brief.",
+        "Your output MUST include:",
+        "1. **Executive Summary** — 2-3 sentence verdict with confidence score (1-10)",
+        "2. **Key Findings** — bullet list with specific data points, numbers, metrics, percentages",
+        "3. **Competitive/Market Analysis** — comparison table or matrix with scores",
+        "4. **Risk Assessment** — scored risks (Critical/High/Medium/Low) with mitigation notes",
+        "5. **Data Sources** — what you analyzed and methodology notes",
+        "Use tables, scores (1-10), traffic lights (🟢🟡🔴), and quantified metrics wherever possible."
+      ].join("\n")
+    : params.sub.role.includes("reviewer")
+    ? [
+        "As REVIEWER, evaluate the scout and worker outputs against industry standards.",
+        "Your output MUST include:",
+        "1. **Verdict** — APPROVE / NEEDS WORK / REJECT with overall score (1-100)",
+        "2. **Dimension Scores** — rate each dimension 1-10: Completeness, Accuracy, Actionability, Depth, Structure",
+        "3. **Critical Issues** — must-fix items before delivery",
+        "4. **Strengths** — what's done well (always include at least 2)",
+        "5. **Improvement Recommendations** — prioritized list with effort estimates",
+        "6. **Final Checklist** — ✅/❌ for each mission requirement",
+        "Be strict but constructive. Use scoring matrices and structured tables."
+      ].join("\n")
+    : [
+        "As WORKER, you produce the primary deliverable — the core output of this mission.",
+        "Your output MUST be comprehensive, structured, and immediately actionable:",
+        "1. **Executive Summary** — key conclusions with confidence/quality scores",
+        "2. **Detailed Analysis/Deliverable** — the main body with subsections, each containing:",
+        "   - Specific findings, recommendations, or implementations",
+        "   - Quantified metrics, scores, or benchmarks where applicable",
+        "   - Actionable next steps with priority (P0/P1/P2) and effort (hours/days)",
+        "3. **Comparison/Decision Matrix** — tables comparing options, approaches, or findings",
+        "4. **Implementation Roadmap** — phased plan with timeline estimates",
+        "5. **Success Metrics** — how to measure if the output achieved its goal",
+        "Use tables, scoring matrices, priority tags, and structured frameworks. NEVER produce a wall of plain text."
+      ].join("\n");
+
   const system = [
     "You are a specialized sub-agent in a multi-agent fleet coordinated by a Central Agent.",
-    "You have been produced with real-time skills extracted from the web — SKILL.md files, documentation, best practices, and domain knowledge.",
-    "You MUST apply ALL injected SKILL instructions and domain knowledge to produce world-class, industry-standard output.",
-    "Your output should demonstrate deep expertise — actionable, comprehensive, structured, and immediately usable.",
-    "Do NOT produce generic or surface-level content. Every section must show expert-level depth.",
-    "Stay inside your sub-agent role and focus. Be factual; do not claim you executed shell commands or external tools unless context says so.",
-    params.reviewFeedback ? "IMPORTANT: You are in REWORK mode. Previous output was rejected by the reviewer. You MUST address all feedback points." : "",
+    "You have been produced with real-time skills extracted from the web — SKILL.md files, documentation, best practices.",
+    "",
+    roleInstructions,
+    "",
+    "CRITICAL OUTPUT RULES:",
+    "- ALWAYS use Markdown tables for comparisons and scores",
+    "- ALWAYS include quantified metrics (numbers, percentages, scores 1-10)",
+    "- ALWAYS structure output with clear H2/H3 headers",
+    "- NEVER produce generic advice — be specific, data-driven, actionable",
+    "- If the mission is about validation/analysis, include a clear VERDICT with reasoning",
+    "Stay inside your sub-agent role. Be factual; do not claim you ran tools unless context says so.",
+    params.reviewFeedback ? "IMPORTANT: REWORK mode — address ALL reviewer feedback points." : "",
     "Reply in Markdown. Indonesian if the user mission is Indonesian."
-  ].filter(Boolean).join(" ");
+  ].filter(Boolean).join("\n");
 
   const user = buildSubUserPayload({ ...params, reviewFeedback: params.reviewFeedback });
 

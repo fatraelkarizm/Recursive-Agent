@@ -968,6 +968,37 @@ function CentralSkillDetailModal({ skill, onClose }: { skill: CentralSkillItem; 
 /*  Mission Results Tab — rich structured view + downloadable report  */
 /* ------------------------------------------------------------------ */
 
+function simpleMarkdownToHtml(md: string): string {
+  let html = esc(md);
+  html = html.replace(/^### (.+)$/gm, '<h4 style="color:#a78bfa;font-size:14px;font-weight:700;margin:16px 0 8px">$1</h4>');
+  html = html.replace(/^## (.+)$/gm, '<h3 style="color:#38bdf8;font-size:16px;font-weight:700;margin:20px 0 10px;padding-bottom:6px;border-bottom:1px solid #1e293b">$1</h3>');
+  html = html.replace(/^# (.+)$/gm, '<h2 style="color:#e2e8f0;font-size:18px;font-weight:800;margin:24px 0 12px">$1</h2>');
+  html = html.replace(/\*\*(.+?)\*\*/g, '<strong style="color:#e2e8f0">$1</strong>');
+  html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+  html = html.replace(/`([^`]+)`/g, '<code style="background:#1e293b;padding:1px 5px;border-radius:4px;font-size:11px;color:#f472b6">$1</code>');
+  html = html.replace(/^- (.+)$/gm, '<li style="margin:4px 0;padding-left:4px">$1</li>');
+  html = html.replace(/(<li[^>]*>.*<\/li>\n?)+/g, (m) => `<ul style="margin:8px 0;padding-left:20px">${m}</ul>`);
+  html = html.replace(/^(\d+)\. (.+)$/gm, '<li style="margin:4px 0">$2</li>');
+
+  // Tables
+  html = html.replace(/^(\|.+\|)\n(\|[-| :]+\|)\n((?:\|.+\|\n?)+)/gm, (_match, header: string, _sep: string, body: string) => {
+    const ths = header.split("|").filter(Boolean).map((h: string) =>
+      `<th style="padding:8px 12px;border-bottom:2px solid #334155;color:#94a3b8;font-size:11px;text-transform:uppercase;text-align:left">${h.trim()}</th>`
+    ).join("");
+    const rows = body.trim().split("\n").map((row: string) => {
+      const tds = row.split("|").filter(Boolean).map((c: string) =>
+        `<td style="padding:6px 12px;border-bottom:1px solid #1e293b;font-size:12px">${c.trim()}</td>`
+      ).join("");
+      return `<tr>${tds}</tr>`;
+    }).join("");
+    return `<table style="width:100%;border-collapse:collapse;margin:12px 0;border:1px solid #1e293b;border-radius:8px;overflow:hidden"><thead><tr>${ths}</tr></thead><tbody>${rows}</tbody></table>`;
+  });
+
+  html = html.replace(/\n{2,}/g, "<br><br>");
+  html = html.replace(/\n/g, "<br>");
+  return html;
+}
+
 function generateMissionReportHtml(opts: {
   missionId: string | null;
   missionPrompt: string;
@@ -996,14 +1027,15 @@ function generateMissionReportHtml(opts: {
   const subAgentCards = (fleetSummary?.subAgentRuns ?? []).map((run) => {
     const srcColor = run.source === "openclaw" ? "#a78bfa" : run.source === "openai-compat" ? "#38bdf8" : "#64748b";
     const statusIcon = run.source === "skipped" ? "&#10060;" : "&#9989;";
-    return `<div style="background:#0f172a;border:1px solid #1e293b;border-radius:12px;padding:16px;margin-bottom:12px">
+    const renderedOutput = simpleMarkdownToHtml(run.output.slice(0, 6000));
+    return `<div style="background:#0f172a;border:1px solid #1e293b;border-radius:12px;padding:16px;margin-bottom:12px;page-break-inside:avoid">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
         <span style="font-size:16px">${statusIcon}</span>
         <span style="font-weight:700;color:#e2e8f0;font-size:14px">${esc(run.role)}</span>
         <span style="background:${srcColor}22;color:${srcColor};padding:2px 8px;border-radius:100px;font-size:10px;font-weight:600">${esc(run.source)}</span>
       </div>
       <p style="color:#94a3b8;font-size:12px;margin-bottom:8px">${esc(run.focus)}</p>
-      <pre style="background:#020617;border:1px solid #1e293b;border-radius:8px;padding:12px;color:#cbd5e1;font-size:11px;white-space:pre-wrap;max-height:300px;overflow:auto">${esc(run.output.slice(0, 3000))}${run.output.length > 3000 ? "\n\n…(truncated)" : ""}</pre>
+      <div class="agent-output" style="background:#020617;border:1px solid #1e293b;border-radius:8px;padding:16px;color:#cbd5e1;font-size:12px;line-height:1.7;max-height:600px;overflow:auto">${renderedOutput}</div>
     </div>`;
   }).join("\n");
 
@@ -1045,6 +1077,13 @@ function generateMissionReportHtml(opts: {
     th{border-bottom-color:#e2e8f0;color:#475569}
     td{color:#334155;border-bottom-color:#f1f5f9}
     pre{max-height:none!important;overflow:visible!important;page-break-inside:avoid}
+    .agent-output{max-height:none!important;overflow:visible!important;background:#f8fafc!important;color:#334155!important;border-color:#e2e8f0!important}
+    .agent-output h2,.agent-output h3,.agent-output h4{color:#1e293b!important;border-bottom-color:#e2e8f0!important}
+    .agent-output strong{color:#1e293b!important}
+    .agent-output code{background:#e2e8f0!important;color:#7c3aed!important}
+    .agent-output table{border-color:#e2e8f0!important}
+    .agent-output th{border-bottom-color:#e2e8f0!important;color:#475569!important}
+    .agent-output td{border-bottom-color:#f1f5f9!important;color:#334155!important}
     .footer{color:#94a3b8;border-top-color:#e2e8f0}
     @page{margin:1cm;size:A4}
   }
@@ -1090,6 +1129,33 @@ function generateMissionReportHtml(opts: {
 
 function esc(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+function renderMarkdownBasic(md: string): string {
+  let html = esc(md);
+  html = html.replace(/^#### (.+)$/gm, "<h4>$1</h4>");
+  html = html.replace(/^### (.+)$/gm, "<h3>$1</h3>");
+  html = html.replace(/^## (.+)$/gm, "<h2>$1</h2>");
+  html = html.replace(/^# (.+)$/gm, "<h2>$1</h2>");
+  html = html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+  html = html.replace(/\*(.+?)\*/g, "<em>$1</em>");
+  html = html.replace(/`([^`]+)`/g, "<code>$1</code>");
+  html = html.replace(/^- (.+)$/gm, "<li>$1</li>");
+  html = html.replace(/(<li>.*<\/li>\n?)+/g, (m) => `<ul>${m}</ul>`);
+  html = html.replace(/^\d+\. (.+)$/gm, "<li>$1</li>");
+
+  html = html.replace(/^(\|.+\|)\n(\|[-| :]+\|)\n((?:\|.+\|\n?)+)/gm, (_match, header: string, _sep: string, body: string) => {
+    const ths = header.split("|").filter(Boolean).map((h: string) => `<th>${h.trim()}</th>`).join("");
+    const rows = body.trim().split("\n").map((row: string) => {
+      const tds = row.split("|").filter(Boolean).map((c: string) => `<td>${c.trim()}</td>`).join("");
+      return `<tr>${tds}</tr>`;
+    }).join("");
+    return `<table><thead><tr>${ths}</tr></thead><tbody>${rows}</tbody></table>`;
+  });
+
+  html = html.replace(/\n{2,}/g, "<br><br>");
+  html = html.replace(/\n/g, "<br>");
+  return html;
 }
 
 function MissionResultsTab({
@@ -1264,9 +1330,10 @@ function MissionResultsTab({
                     <ChevronDown className="h-3 w-3 text-slate transition group-open:rotate-180" />
                   </summary>
                   <div className="border-t border-white/5 p-3">
-                    <pre className="max-h-60 overflow-auto whitespace-pre-wrap rounded-lg bg-black/50 p-2 font-mono text-[11px] text-slate-200">
-                      {run.output.slice(0, 4000)}{run.output.length > 4000 ? "\n\n…(truncated)" : ""}
-                    </pre>
+                    <div
+                      className="prose-sm prose-invert max-h-[500px] overflow-auto rounded-lg bg-black/50 p-4 text-[12px] leading-relaxed text-slate-200 [&_h2]:text-base [&_h2]:font-bold [&_h2]:text-white [&_h2]:mt-4 [&_h2]:mb-2 [&_h3]:text-sm [&_h3]:font-bold [&_h3]:text-cyan-300 [&_h3]:mt-3 [&_h3]:mb-1.5 [&_h4]:text-xs [&_h4]:font-bold [&_h4]:text-violet-300 [&_h4]:mt-2 [&_h4]:mb-1 [&_strong]:text-white [&_table]:w-full [&_table]:text-[11px] [&_table]:border-collapse [&_table]:my-2 [&_th]:border [&_th]:border-white/10 [&_th]:bg-white/5 [&_th]:px-2 [&_th]:py-1 [&_th]:text-left [&_th]:text-slate [&_td]:border [&_td]:border-white/10 [&_td]:px-2 [&_td]:py-1 [&_code]:bg-white/10 [&_code]:px-1 [&_code]:rounded [&_code]:text-pink-300 [&_code]:text-[10px] [&_li]:my-0.5"
+                      dangerouslySetInnerHTML={{ __html: renderMarkdownBasic(run.output.slice(0, 6000)) }}
+                    />
                   </div>
                 </details>
               );

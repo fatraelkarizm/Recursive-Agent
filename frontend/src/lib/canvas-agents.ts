@@ -20,8 +20,12 @@ export function mergeCanvasAgents(
       next[idx] = agent;
       continue;
     }
-    if (!id && next.some((a) => a.name === agent.name && a.missionId === agent.missionId)) {
-      continue;
+    if (!id) {
+      const existingIdx = next.findIndex((a) => a.name === agent.name && a.missionId === agent.missionId);
+      if (existingIdx >= 0) {
+        next[existingIdx] = agent;
+        continue;
+      }
     }
     next.push(agent);
   }

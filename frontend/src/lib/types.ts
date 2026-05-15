@@ -87,6 +87,8 @@ export type MissionProgressEvent = {
   at: string;
   /** Which agent this event belongs to (for per-agent activity indicators). */
   agentName?: string;
+  /** Streamed specialist profile — add to canvas immediately when received. */
+  specialist?: SpecialistAgentProfile;
 };
 
 export type MissionResponse = {

@@ -159,6 +159,9 @@ export default function Page() {
             if (event.agentName) {
               setAgentActivity((prev) => ({ ...prev, [event.agentName!]: event }));
             }
+            if (event.specialist) {
+              setSquad((prev) => mergeCanvasAgents(prev, [event.specialist!]));
+            }
           },
           onDone: (result) => {
             const incoming = result.specialists ?? [result.profile];

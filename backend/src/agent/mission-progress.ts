@@ -16,6 +16,8 @@ export type MissionProgressEvent = {
   detail?: string;
   at: string;
   agentName?: string;
+  /** Streamed specialist profile — frontend should add to canvas immediately. */
+  specialist?: unknown;
 };
 
 export type MissionProgressEmitter = (event: MissionProgressEvent) => void;

@@ -604,25 +604,21 @@ export async function runSubAgentFleetWithReview(params: {
     params.onProgress?.(`Rework ${failedIds.length} agent`, params.profile.name);
 
     const subs = params.profile.subAgents ?? [];
-    let prior = "";
-    const updatedRuns: SubAgentRunResult[] = [];
+    const prior = currentRuns
+      .map((r) => `\n\n### ${r.role} (${r.id})\n${r.output}`)
+      .join("");
 
-    for (const run of currentRuns) {
+    const reworkPromises = currentRuns.map(async (run): Promise<{ run: SubAgentRunResult; extra: SubAgentRunResult[]; events: string[] }> => {
+      const localEvents: string[] = [];
       const feedback = review.feedback[run.id];
       if (!feedback || run.source === "skipped") {
-        updatedRuns.push(run);
-        prior += `\n\n### ${run.role} (${run.id})\n${run.output}`;
-        continue;
+        return { run, extra: [], events: localEvents };
       }
 
       const sub = subs.find((s) => s.id === run.id);
-      if (!sub) {
-        updatedRuns.push(run);
-        prior += `\n\n### ${run.role} (${run.id})\n${run.output}`;
-        continue;
-      }
+      if (!sub) return { run, extra: [], events: localEvents };
 
-      allEvents.push(`Fleet rework: re-running ${run.role} (${run.id}) with feedback`);
+      localEvents.push(`Fleet rework: re-running ${run.role} (${run.id}) with feedback`);
       params.onProgress?.(`Rework · ${run.role}`, params.profile.name);
 
       let output: string | null = null;
@@ -653,17 +649,16 @@ export async function runSubAgentFleetWithReview(params: {
             reviewFeedback: feedback
           });
           if (output) source = "openai-compat";
-        } catch {
-          /* fallback to previous output */
-        }
+        } catch { /* fallback */ }
       }
 
       if (!output) {
-        updatedRuns.push(run);
-        prior += `\n\n### ${run.role} (${run.id})\n${run.output}`;
-        allEvents.push(`Fleet rework: ${run.id} rework failed — keeping previous output`);
-      } else if (output.length < 300 && iteration >= 2) {
-        allEvents.push(`Fleet decompose: ${run.id} output too shallow after rework — spawning child agents`);
+        localEvents.push(`Fleet rework: ${run.id} rework failed — keeping previous output`);
+        return { run, extra: [], events: localEvents };
+      }
+
+      if (output.length < 300 && iteration >= 2) {
+        localEvents.push(`Fleet decompose: ${run.id} output too shallow — spawning child agents`);
         params.onProgress?.(`Decompose · ${run.role} → child agents`, params.profile.name);
 
         const childRuns = await decomposeAndRunChildren({
@@ -686,22 +681,24 @@ export async function runSubAgentFleetWithReview(params: {
             output: `## Decomposed output (${childRuns.length} child agents)\n\n${merged}`,
             source: childRuns[0]?.source ?? "openai-compat"
           };
-          updatedRuns.push(compositeRun);
-          for (const cr of childRuns) updatedRuns.push(cr);
-          prior += `\n\n### ${run.role} (decomposed)\n${merged}`;
-          allEvents.push(`Fleet decompose: ${run.id} produced ${childRuns.length} child agents`);
-        } else {
-          const updatedRun = { ...run, output, source };
-          updatedRuns.push(updatedRun);
-          prior += `\n\n### ${run.role} (${run.id})\n${output}`;
-          allEvents.push(`Fleet decompose: ${run.id} decomposition failed — keeping reworked output`);
+          localEvents.push(`Fleet decompose: ${run.id} produced ${childRuns.length} child agents`);
+          return { run: compositeRun, extra: childRuns, events: localEvents };
         }
-      } else {
-        const updatedRun = { ...run, output, source };
-        updatedRuns.push(updatedRun);
-        prior += `\n\n### ${run.role} (${run.id})\n${output}`;
-        allEvents.push(`Fleet rework: ${run.id} improved (${output.length} chars, source=${source})`);
+
+        localEvents.push(`Fleet decompose: ${run.id} decomposition failed — keeping reworked output`);
+        return { run: { ...run, output, source }, extra: [], events: localEvents };
       }
+
+      localEvents.push(`Fleet rework: ${run.id} improved (${output.length} chars, source=${source})`);
+      return { run: { ...run, output, source }, extra: [], events: localEvents };
+    });
+
+    const reworkResults = await Promise.all(reworkPromises);
+    const updatedRuns: SubAgentRunResult[] = [];
+    for (const r of reworkResults) {
+      updatedRuns.push(r.run);
+      for (const e of r.extra) updatedRuns.push(e);
+      allEvents.push(...r.events);
     }
 
     currentRuns = updatedRuns;

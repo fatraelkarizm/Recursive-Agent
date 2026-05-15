@@ -97,37 +97,28 @@ export async function runMission(
 
   emit({
     phase: "tools",
-    label: "Central Agent recall memory (Mem0)",
-    detail: "Mencari memori relevan dari misi sebelumnya"
+    label: "Central Agent: parallel research (Mem0 + Tavily + Skills)",
+    detail: "Mem0 recall, web research, skill extraction — berjalan bersamaan"
   });
-  let mem0Context = "";
-  let mem0RecallCount = 0;
-  try {
-    const memories = await searchMemories(effectivePrompt, { agentId: "central-agent", topK: 5 });
-    if (memories.length > 0) {
-      mem0Context = memories.map((m) => m.memory).join("\n");
-      mem0RecallCount = memories.length;
-    }
-  } catch { /* mem0 optional */ }
 
-  emit({
-    phase: "tools",
-    label: "Central Agent riset web (Tavily)",
-    detail: "Mencari referensi & tren sebelum merancang squad"
-  });
-  const webResearch = await runMotherWebResearch(effectivePrompt);
+  const [mem0Result, webResearch, skillDiscovery] = await Promise.all([
+    (async () => {
+      try {
+        const memories = await searchMemories(effectivePrompt, { agentId: "central-agent", topK: 5 });
+        return { context: memories.map((m) => m.memory).join("\n"), count: memories.length };
+      } catch { return { context: "", count: 0 }; }
+    })(),
+    runMotherWebResearch(effectivePrompt),
+    discoverSkillsForMission(effectivePrompt)
+  ]);
 
-  emit({
-    phase: "tools",
-    label: "Central Agent ekstrak SKILL.md dari web + GitHub",
-    detail: "Real-time skill extraction: GitHub repos, docs, npm, awesome-lists"
-  });
-  const skillDiscovery = await discoverSkillsForMission(effectivePrompt);
+  const mem0Context = mem0Result.context;
+  const mem0RecallCount = mem0Result.count;
 
   emit({
     phase: "tools",
     label: `Ditemukan ${skillDiscovery.catalog.length} skills dari ${skillDiscovery.extractedDocs.length} sumber`,
-    detail: `Topics: ${skillDiscovery.extractedDocs.slice(0, 3).map((d) => d.source).join(", ")}`
+    detail: `Mem0: ${mem0RecallCount} memories | Topics: ${skillDiscovery.extractedDocs.slice(0, 3).map((d) => d.source).join(", ")}`
   });
 
   const synthPayload: MissionPayload = {
@@ -182,11 +173,15 @@ export async function runMission(
     }
   }
 
-  emit({
-    phase: "mother-spawn",
-    label: "Central Agent menghasilkan agent",
-    detail: squad.map((s) => s.name).join(", ")
-  });
+  for (const member of squad) {
+    emit({
+      phase: "mother-spawn",
+      label: `Agent spawned: ${member.name}`,
+      detail: member.role,
+      agentName: member.name,
+      specialist: member
+    });
+  }
 
   emit({
     phase: "mother-review",
@@ -205,15 +200,18 @@ export async function runMission(
     knowledgeDigest: skillDiscovery.knowledgeDigest
   });
 
-  for (const member of squad) {
-    if (source === "fallback-rules" && member.readmeMd.length < 400 && !missionWantsHtmlDeliverable(effectivePrompt)) {
-      emit({
-        phase: "specialist-readme",
-        label: `Melengkapi README · ${member.name}`,
-        detail: member.role
-      });
-      await enrichProfileReadmeWithSumopod(member, effectivePrompt);
-    }
+  const readmeEnrichTargets = squad.filter(
+    (m) => source === "fallback-rules" && m.readmeMd.length < 400 && !missionWantsHtmlDeliverable(effectivePrompt)
+  );
+  if (readmeEnrichTargets.length > 0) {
+    emit({
+      phase: "specialist-readme",
+      label: `Melengkapi README · ${readmeEnrichTargets.length} agent`,
+      detail: readmeEnrichTargets.map((m) => m.name).join(", ")
+    });
+    await Promise.all(
+      readmeEnrichTargets.map((member) => enrichProfileReadmeWithSumopod(member, effectivePrompt))
+    );
   }
 
   const profile = fleetLead;
@@ -283,20 +281,17 @@ export async function runMission(
     events.push(oc);
   }
 
-  emit({ phase: "tools", label: "Tool route" });
-  const toolEvent = await runToolRoute(effectivePrompt, { preferTavilySearch: payload.preferTavilySearch === true });
-  events.push(`Tool route: ${toolEvent}`);
-
   emit({
     phase: "mother-review",
-    label: "Central Agent review hasil agent",
+    label: "Central Agent: parallel finalize (tool route + quality review)",
     detail: "Memeriksa setiap specialist vs misi user"
   });
-  const quality = await runMotherQualityReview({
-    missionPrompt: effectivePrompt,
-    squad,
-    fleetSummary
-  });
+
+  const [toolEvent, quality] = await Promise.all([
+    runToolRoute(effectivePrompt, { preferTavilySearch: payload.preferTavilySearch === true }),
+    runMotherQualityReview({ missionPrompt: effectivePrompt, squad, fleetSummary })
+  ]);
+  events.push(`Tool route: ${toolEvent}`);
   const motherReview = quality.reviewMarkdown;
   events.push(`Central review: ${motherReview.slice(0, 240)}${motherReview.length > 240 ? "…" : ""}`);
 

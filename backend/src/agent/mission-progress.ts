@@ -18,6 +18,8 @@ export type MissionProgressEvent = {
   agentName?: string;
   /** Streamed specialist profile — frontend should add to canvas immediately. */
   specialist?: unknown;
+  /** Streamed fleet sub-agent run result — frontend can build fleetSummary incrementally. */
+  fleetRun?: { id: string; role: string; focus: string; output: string; source: string };
 };
 
 export type MissionProgressEmitter = (event: MissionProgressEvent) => void;

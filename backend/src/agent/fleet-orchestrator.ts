@@ -42,13 +42,13 @@ function formatGatewayFailureBlock(detail: string): string {
 }
 
 function fleetMaxTokensPerSub(): number {
-  const n = Number(process.env.FLEET_MAX_TOKENS_PER_SUB ?? "1400");
-  return Number.isFinite(n) && n > 200 ? n : 1400;
+  const n = Number(process.env.FLEET_MAX_TOKENS_PER_SUB ?? "3000");
+  return Number.isFinite(n) && n > 200 ? n : 3000;
 }
 
 function fleetMergeMaxTokens(): number {
-  const n = Number(process.env.FLEET_MERGE_MAX_TOKENS ?? "2200");
-  return Number.isFinite(n) && n > 400 ? n : 2200;
+  const n = Number(process.env.FLEET_MERGE_MAX_TOKENS ?? "4000");
+  return Number.isFinite(n) && n > 400 ? n : 4000;
 }
 
 function buildSkillInstructionsBlock(profile: SpecialistAgentProfile): string {

@@ -89,6 +89,8 @@ export type MissionProgressEvent = {
   agentName?: string;
   /** Streamed specialist profile — add to canvas immediately when received. */
   specialist?: SpecialistAgentProfile;
+  /** Streamed fleet sub-agent run result — accumulate for incremental fleetSummary. */
+  fleetRun?: SubAgentRunResult;
 };
 
 export type MissionResponse = {

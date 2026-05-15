@@ -141,6 +141,7 @@ export default function Page() {
     setProgress([]);
     setProgressCurrent(null);
     setAgentActivity({});
+    setFleetSummary(null);
     setMissionStartedAt(Date.now());
     setMissionElapsedMs(0);
     const promptTrim = prompt.trim();
@@ -161,6 +162,16 @@ export default function Page() {
             }
             if (event.specialist) {
               setSquad((prev) => mergeCanvasAgents(prev, [event.specialist!]));
+            }
+            if (event.fleetRun) {
+              setFleetSummary((prev) => {
+                const runs = prev?.subAgentRuns ?? [];
+                const existing = runs.findIndex((r) => r.id === event.fleetRun!.id);
+                const updated = existing >= 0
+                  ? [...runs.slice(0, existing), event.fleetRun!, ...runs.slice(existing + 1)]
+                  : [...runs, event.fleetRun!];
+                return { mergedReport: prev?.mergedReport ?? "", subAgentRuns: updated };
+              });
             }
           },
           onDone: (result) => {

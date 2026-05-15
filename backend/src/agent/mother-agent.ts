@@ -155,22 +155,16 @@ export async function runMission(
 
   enrichSquadWithDiscoveredSkills(squad, skillDiscovery.catalog);
 
-  const fleetLead = squad.find((s) => s.canvasLane === "frontend") ?? squad[0];
-  ensureLeadFleetReady(fleetLead, synthPrompt);
-  fleetLead.subAgents = enrichSubAgentsWithDiscoveredSkills(
-    fleetLead.subAgents ?? [],
-    skillDiscovery.catalog,
-    synthPrompt,
-    skillDiscovery.knowledgeDigest
-  );
+  const fleetLead = squad[0];
   for (const member of squad) {
+    ensureLeadFleetReady(member, synthPrompt);
+    member.subAgents = enrichSubAgentsWithDiscoveredSkills(
+      member.subAgents ?? [],
+      skillDiscovery.catalog,
+      synthPrompt,
+      skillDiscovery.knowledgeDigest
+    );
     refreshPlainArtifacts(member, synthPrompt);
-    if (member !== fleetLead && isAutoOrchestrationEnabled()) {
-      member.orchestrationMode = "openclaw";
-      if (!member.specializations.includes("openclaw-orchestration")) {
-        member.specializations = [...member.specializations, "openclaw-orchestration"];
-      }
-    }
   }
 
   for (const member of squad) {
@@ -247,31 +241,47 @@ export async function runMission(
   });
 
   let fleetSummary: MissionResult["fleetSummary"];
-  if (isAutoOrchestrationEnabled() && profile.subAgents?.length) {
+  const squadWithSubs = squad.filter((s) => s.subAgents?.length);
+  if (isAutoOrchestrationEnabled() && squadWithSubs.length > 0) {
+    const totalSubs = squadWithSubs.reduce((n, s) => n + (s.subAgents?.length ?? 0), 0);
     emit({
       phase: "fleet-run",
       label: "Fleet + auto-review loop",
-      detail: `${profile.subAgents.length} sub-agent — iterasi sampai standar industri`
+      detail: `${squadWithSubs.length} specialist × scout/worker/reviewer = ${totalSubs} sub-agent — iterasi sampai standar industri`
     });
+
     const maxIterations = fleetReviewMaxIterations();
-    const fleet = await runSubAgentFleetWithReview({
-      missionId,
-      motherPrompt: synthPrompt,
-      profile,
-      openClawContext,
-      maxIterations,
-      onProgress: (subLabel, agentName) => {
-        emit({ phase: "fleet-run", label: subLabel, agentName });
+    const allRuns: import("../types").SubAgentRunResult[] = [];
+    const allMergedParts: string[] = [];
+
+    for (const member of squadWithSubs) {
+      emit({ phase: "fleet-run", label: `Fleet · ${member.name}`, detail: `Executing ${member.subAgents!.length} sub-agents for ${member.role}`, agentName: member.name });
+
+      const fleet = await runSubAgentFleetWithReview({
+        missionId,
+        motherPrompt: synthPrompt,
+        profile: member,
+        openClawContext,
+        maxIterations,
+        onProgress: (subLabel, agentName) => {
+          emit({ phase: "fleet-run", label: subLabel, agentName: agentName ?? member.name });
+        }
+      });
+      events.push(...fleet.events);
+      for (const run of fleet.summary.subAgentRuns) {
+        allRuns.push(run);
+        emit({ phase: "fleet-run", label: `Fleet result · ${run.role}`, agentName: member.name, fleetRun: run });
       }
-    });
-    events.push(...fleet.events);
-    fleetSummary = fleet.summary;
-    budget.trackLlmCall(fleet.iterations * (profile.subAgents?.length ?? 1) + fleet.iterations);
-    if (fleet.iterations > 1) {
-      events.push(`Fleet auto-review: ${fleet.iterations} iterasi untuk mencapai standar industri.`);
+      if (fleet.summary.mergedReport) allMergedParts.push(`## ${member.name} (${member.role})\n\n${fleet.summary.mergedReport}`);
+      budget.trackLlmCall(fleet.iterations * (member.subAgents?.length ?? 1) + fleet.iterations);
     }
 
-    emit({ phase: "fleet-merge", label: `Central Agent merge (${fleet.iterations} iterasi)` });
+    fleetSummary = {
+      mergedReport: allMergedParts.join("\n\n---\n\n"),
+      subAgentRuns: allRuns
+    };
+
+    emit({ phase: "fleet-merge", label: `Central Agent merge (${squadWithSubs.length} specialists)` });
   } else if (shouldRunOpenClaw(profile)) {
     const oc = await orchestrateViaOpenClaw({
       missionId,

@@ -6,7 +6,6 @@ import { nanoid } from "nanoid";
 import { AppHeader } from "@/components/app-header";
 import { ControlChatPanel } from "@/components/control-chat-panel";
 import { KnowledgePanel } from "@/components/knowledge-panel";
-import { MotherThoughtCloud } from "@/components/mother-thought-cloud";
 import { TerminalDrawer } from "@/components/terminal-drawer";
 import { VitalsPanel } from "@/components/vitals-panel";
 import { WorkspaceRail, type WorkspaceRecipe } from "@/components/workspace-rail";
@@ -181,9 +180,9 @@ export default function Page() {
             specialists={squad}
             onSelectAgent={(t) => setDashTarget(t)}
             onOpenMotherDashboard={() => setMotherModalOpen(true)}
-            thoughtOverlay={
-              <MotherThoughtCloud active={busy} current={progressCurrent} history={progress} />
-            }
+            motherThinking={busy}
+            motherProgressCurrent={progressCurrent}
+            motherProgressHistory={progress}
           />
           <div className="grid shrink-0 grid-cols-1 gap-3 lg:grid-cols-3">
             <KnowledgePanel

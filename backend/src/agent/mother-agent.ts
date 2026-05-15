@@ -8,6 +8,7 @@ import { runToolRoute } from "./tool-router";
 import { runSandboxTask } from "../sandbox/e2b";
 import { browserTouchFromPrompt } from "../capabilities/browser";
 import { enrichProfileReadmeWithSumopod } from "../compat/openai-compatible-chat";
+import { ensureLeadHtmlDeliverable } from "./mother-deliverable";
 import { persistMissionResult } from "../db/mission-store";
 import type { MissionProgressEmitter } from "./mission-progress";
 import { createProgressEmitter } from "./mission-progress";
@@ -44,8 +45,22 @@ export async function runMission(
     detail: motherBrief.slice(0, 280)
   });
 
+  const lead = squad[0];
+  let htmlDeliverableNote: string | null = null;
+  if (source === "mother-llm") {
+    emit({
+      phase: "specialist-readme",
+      label: "Mother menulis deliverable HTML",
+      detail: lead.name
+    });
+    const added = await ensureLeadHtmlDeliverable(lead, effectivePrompt);
+    if (added) {
+      htmlDeliverableNote = "Mother: HTML deliverable generated for lead specialist README.";
+    }
+  }
+
   for (const member of squad) {
-    if (member.readmeMd.length < 400) {
+    if (source === "fallback-rules" && member.readmeMd.length < 400) {
       emit({
         phase: "specialist-readme",
         label: `Melengkapi README · ${member.name}`,
@@ -58,6 +73,7 @@ export async function runMission(
   const profile = squad[0];
   const graph = buildMissionGraph(profile);
   const events: string[] = [];
+  if (htmlDeliverableNote) events.push(htmlDeliverableNote);
   events.push(`Mother: squad via ${source}`);
   events.push(`Mother brief: ${motherBrief.slice(0, 500)}${motherBrief.length > 500 ? "…" : ""}`);
 

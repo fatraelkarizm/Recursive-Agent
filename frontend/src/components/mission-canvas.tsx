@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo } from "react";
+import type { MissionProgressEvent } from "@/lib/types";
 import {
   Background,
   BackgroundVariant,
@@ -150,9 +151,20 @@ type FlowSurfaceProps = {
   specialists: SpecialistAgentProfile[];
   onSelectAgent?: (target: AgentDashboardTarget) => void;
   onOpenMotherDashboard?: () => void;
+  motherThinking?: boolean;
+  motherProgressCurrent?: MissionProgressEvent | null;
+  motherProgressHistory?: MissionProgressEvent[];
 };
 
-function FlowSurface({ status, specialists, onSelectAgent, onOpenMotherDashboard }: FlowSurfaceProps) {
+function FlowSurface({
+  status,
+  specialists,
+  onSelectAgent,
+  onOpenMotherDashboard,
+  motherThinking,
+  motherProgressCurrent,
+  motherProgressHistory
+}: FlowSurfaceProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState(cloneNodes(STATIC_BASE_NODES));
   const [edges, setEdges, onEdgesChange] = useEdgesState(cloneEdges(STATIC_BASE_EDGES));
 
@@ -229,10 +241,16 @@ function FlowSurface({ status, specialists, onSelectAgent, onOpenMotherDashboard
 
       return list.map((node) => {
         const baseData = { ...(node.data as object), pulse };
-        const data =
-          node.id === "mother" && onOpenMotherDashboard
-            ? { ...baseData, onConfigure: onOpenMotherDashboard }
-            : baseData;
+        let data = baseData;
+        if (node.id === "mother") {
+          data = {
+            ...baseData,
+            ...(onOpenMotherDashboard ? { onConfigure: onOpenMotherDashboard } : {}),
+            thinking: motherThinking,
+            thinkingCurrent: motherProgressCurrent,
+            thinkingHistory: motherProgressHistory
+          };
+        }
         return {
           ...node,
           className: ring,
@@ -270,7 +288,16 @@ function FlowSurface({ status, specialists, onSelectAgent, onOpenMotherDashboard
       }));
       return [...base, ...motherToSpecs, ...subEdges];
     });
-  }, [specialists, status, setNodes, setEdges, onOpenMotherDashboard]);
+  }, [
+    specialists,
+    status,
+    setNodes,
+    setEdges,
+    onOpenMotherDashboard,
+    motherThinking,
+    motherProgressCurrent,
+    motherProgressHistory
+  ]);
 
   const defaultEdgeOptions = useMemo(
     () => ({
@@ -313,7 +340,9 @@ type MissionCanvasProps = {
   specialists: SpecialistAgentProfile[];
   onSelectAgent?: (target: AgentDashboardTarget) => void;
   onOpenMotherDashboard?: () => void;
-  thoughtOverlay?: ReactNode;
+  motherThinking?: boolean;
+  motherProgressCurrent?: MissionProgressEvent | null;
+  motherProgressHistory?: MissionProgressEvent[];
 };
 
 export function MissionCanvas({
@@ -321,7 +350,9 @@ export function MissionCanvas({
   specialists,
   onSelectAgent,
   onOpenMotherDashboard,
-  thoughtOverlay
+  motherThinking,
+  motherProgressCurrent,
+  motherProgressHistory
 }: MissionCanvasProps) {
   return (
     <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-b from-[#050f1f] via-[#061222] to-[#030914] shadow-inner shadow-black/40">
@@ -347,9 +378,11 @@ export function MissionCanvas({
             specialists={specialists}
             onSelectAgent={onSelectAgent}
             onOpenMotherDashboard={onOpenMotherDashboard}
+            motherThinking={motherThinking}
+            motherProgressCurrent={motherProgressCurrent}
+            motherProgressHistory={motherProgressHistory}
           />
         </ReactFlowProvider>
-        {thoughtOverlay}
       </div>
     </section>
   );

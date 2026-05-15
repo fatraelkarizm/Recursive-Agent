@@ -125,13 +125,15 @@ export async function synthesizeSquadFromMother(payload: MissionPayload): Promis
     '    "allowedTools": ["tavily-search", "tavily-extract", ...],',
     '    "subAgents": [{ "role": "scout|worker|reviewer|custom", "focus": "what this leg does" }],',
     '    "skills": [{ "id": "...", "label": "...", "description": "...", "kind": "touch|generate|orchestrate|other" }],',
-    '    "readmeMd": "Full README in Markdown for this specialist. For web/UI missions include a complete ```html fenced block with embedded CSS (dark elegant) when user asked for HTML."',
+    '    "readmeMd": "Full README in Markdown. If user wants a landing/page/HTML: include ONE complete ```html fenced block (embedded CSS, dark elegant) tailored to the EXACT topic (e.g. crypto landing → crypto hero, features, CTA — NOT a generic article/CMS editor)."',
     "  }]",
     "}",
     "Rules:",
-    "- 1 specialist for narrow missions; 2 (frontend+backend) only when the mission clearly splits UI vs API/data.",
-    "- subAgents: 0-3 legs on the LEAD specialist only when parallel critique helps; omit for trivial tasks.",
-    "- readmeMd must be substantive (goals, steps, deliverables). Honor user language (Indonesian if user writes Indonesian).",
+    "- Infer deliverable type from the user prompt (landing page vs CMS vs API-only). Never default to article/CMS templates.",
+    "- Single-page landing / marketing HTML → usually 1 specialist with html fence; do NOT split frontend+backend unless user asked for full stack.",
+    "- 2 specialists only when UI and API/data are clearly separate deliverables.",
+    "- subAgents: 0-3 on lead specialist only when critique helps; omit for simple one-page builds.",
+    "- readmeMd must be substantive and topic-specific. Honor user language (Indonesian if user writes Indonesian).",
     "- Do not invent API keys or claim tools ran."
   ].join("\n");
 

@@ -1,7 +1,9 @@
 "use client";
 
 import { memo } from "react";
-import { Handle, Position, type NodeProps } from "@xyflow/react";
+import { Handle, NodeToolbar, Position, type NodeProps } from "@xyflow/react";
+import { MotherThoughtBubble } from "@/components/mother-thought-bubble";
+import type { MissionProgressEvent } from "@/lib/types";
 import { Bot, ClipboardCheck, Database, GitBranch, LayoutTemplate, Search, Wrench, Zap } from "lucide-react";
 
 type LabelData = { label: string };
@@ -20,11 +22,23 @@ export const TriggerNode = memo(function TriggerNode({ data }: NodeProps) {
   );
 });
 
-type MotherNodeData = LabelData & { onConfigure?: () => void; pulse?: boolean };
+type MotherNodeData = LabelData & {
+  onConfigure?: () => void;
+  pulse?: boolean;
+  thinking?: boolean;
+  thinkingCurrent?: MissionProgressEvent | null;
+  thinkingHistory?: MissionProgressEvent[];
+};
 
 export const MotherAgentNode = memo(function MotherAgentNode({ data }: NodeProps) {
-  const { label, onConfigure } = data as MotherNodeData;
+  const { label, onConfigure, thinking, thinkingCurrent, thinkingHistory } = data as MotherNodeData;
   return (
+    <>
+      {thinking ? (
+        <NodeToolbar isVisible position={Position.Top} offset={12} className="!bg-transparent !border-0 !shadow-none">
+          <MotherThoughtBubble current={thinkingCurrent ?? null} history={thinkingHistory ?? []} />
+        </NodeToolbar>
+      ) : null}
     <div className="min-w-[220px] max-w-[260px] rounded-xl border-2 border-electric/70 bg-[#0b1f36] px-3 py-3 shadow-lg">
       <Handle type="target" position={Position.Left} className="!h-2 !w-2 !border-0 !bg-electric" />
       <div className="flex items-center gap-2 border-b border-white/10 pb-2 text-xs font-semibold text-electric">
@@ -63,6 +77,7 @@ export const MotherAgentNode = memo(function MotherAgentNode({ data }: NodeProps
         style={{ left: "50%" }}
       />
     </div>
+    </>
   );
 });
 

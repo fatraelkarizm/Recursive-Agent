@@ -1,7 +1,6 @@
 import type { SpecialistAgentProfile } from "../types";
 import { buildSpecialistReadme, buildSpecialistSkills } from "./specialist-artifacts";
 import { buildSubAgents, inferSpecializations, pickOrchestrationMode } from "./specializations";
-import { appendBackendWebStackReadme, appendFrontendWebStackReadme } from "./web-readme-appendix";
 
 function randomId(length = 8): string {
   return Math.random().toString(36).slice(2, 2 + length);
@@ -81,10 +80,6 @@ function buildSingletonSpecialist(prompt: string): SpecialistAgentProfile {
   };
 
   profile.readmeMd = buildSpecialistReadme(profile, prompt);
-  if (isWebStackPrompt(prompt)) {
-    appendFrontendWebStackReadme(profile, prompt);
-    appendBackendWebStackReadme(profile, prompt);
-  }
   return profile;
 }
 
@@ -104,8 +99,7 @@ function buildFrontendSpecialist(prompt: string): SpecialistAgentProfile {
   const profile: SpecialistAgentProfile = {
     name: `fe-${randomId(5)}`,
     role,
-    purpose:
-      "Membangun UI/UX, halaman Next.js (App Router), komponen artikel/CMS, dan wireframe HTML/CSS yang selaras dengan misi produk.",
+    purpose: "Membangun UI/UX dan deliverable web yang selaras dengan misi user (bukan template generik).",
     systemInstructions:
       "Kamu spesialis frontend: Next.js, aksesibilitas dasar, state form editor, dan pemisahan data fetching ke API backend. Utamakan struktur folder yang mudah di-review.",
     allowedTools: allowed,
@@ -121,7 +115,6 @@ function buildFrontendSpecialist(prompt: string): SpecialistAgentProfile {
   };
 
   profile.readmeMd = buildSpecialistReadme(profile, prompt);
-  appendFrontendWebStackReadme(profile, prompt);
   return profile;
 }
 
@@ -138,8 +131,7 @@ function buildBackendSpecialist(prompt: string): SpecialistAgentProfile {
   const profile: SpecialistAgentProfile = {
     name: `be-${randomId(5)}`,
     role,
-    purpose:
-      "Merancang API artikel/CMS, model data, authz dasar, dan kontrak integrasi untuk frontend Next.js.",
+    purpose: "Merancang API, model data, dan kontrak integrasi sesuai misi user.",
     systemInstructions:
       "Kamu spesialis backend: REST/JSON konsisten, validasi input, idempotensi di mana relevan, dan skema DB yang mudah dimigrasi (Prisma/SQL).",
     allowedTools: allowed,
@@ -154,7 +146,6 @@ function buildBackendSpecialist(prompt: string): SpecialistAgentProfile {
   };
 
   profile.readmeMd = buildSpecialistReadme(profile, prompt);
-  appendBackendWebStackReadme(profile, prompt);
   return profile;
 }
 

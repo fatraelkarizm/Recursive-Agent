@@ -1,6 +1,7 @@
 import type { FleetOrchestrationSummary, SpecialistAgentProfile, SubAgentRunResult } from "../types";
 import { isOpenAiCompatConfigured, openAiCompatibleChatCompletion } from "../compat/openai-compatible-chat";
 import { logger } from "../logging";
+import { isOpenClawOrchestrationEnabled } from "./specializations";
 import { runOpenClawAgentMessage } from "./openclaw-bridge";
 
 function sanitizeGatewayErrorMessage(raw: string): string {
@@ -98,13 +99,15 @@ async function runSubViaOpenAiCompat(params: {
   const user = buildSubUserPayload(params);
 
   try {
+    const fleetTimeout = Number(process.env.FLEET_LLM_TIMEOUT_MS ?? process.env.MOTHER_LLM_TIMEOUT_MS ?? "120000");
     return await openAiCompatibleChatCompletion({
       messages: [
         { role: "system", content: system },
         { role: "user", content: user }
       ],
       maxTokens: fleetMaxTokensPerSub(),
-      temperature: 0.45
+      temperature: 0.45,
+      timeoutMs: Number.isFinite(fleetTimeout) && fleetTimeout > 10_000 ? fleetTimeout : 120_000
     });
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);

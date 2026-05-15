@@ -38,8 +38,8 @@ export function MotherThoughtBubble({ current, history }: MotherThoughtBubblePro
           {history
             .slice(-4)
             .reverse()
-            .map((h) => (
-              <li key={`${h.at}-${h.phase}`} className="truncate">
+            .map((h, i) => (
+              <li key={`${h.at}-${h.phase}-${i}`} className="truncate">
                 {h.label}
               </li>
             ))}

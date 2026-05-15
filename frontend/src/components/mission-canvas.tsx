@@ -1,6 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
+import { saveCanvasAgentPosition } from "@/lib/api";
+import { loadAllCanvasPositions, loadCanvasPosition, saveCanvasPosition } from "@/lib/canvas-positions";
 import type { MissionProgressEvent } from "@/lib/types";
 import {
   Background,
@@ -44,6 +46,20 @@ const nodeTypes = {
 
 function agentNodeId(agent: SpecialistAgentProfile, index: number): string {
   return `${SP_PREFIX}${agent.persistedId ?? `idx-${index}`}`;
+}
+
+function resolveNodePosition(
+  nodeId: string,
+  agent: SpecialistAgentProfile | undefined,
+  fallback: { x: number; y: number }
+): { x: number; y: number } {
+  const fromProfile = agent?.canvasPosition;
+  if (fromProfile && Number.isFinite(fromProfile.x) && Number.isFinite(fromProfile.y)) {
+    return fromProfile;
+  }
+  const fromStorage = loadCanvasPosition(nodeId);
+  if (fromStorage) return fromStorage;
+  return fallback;
 }
 
 function layoutAgentGrid(n: number): { x: number; y: number }[] {
@@ -180,12 +196,36 @@ function FlowSurface({
   motherProgressCurrent,
   motherProgressHistory
 }: FlowSurfaceProps) {
-  const [nodes, setNodes, onNodesChange] = useNodesState(cloneNodes(STATIC_BASE_NODES));
+  const savedStaticRef = useRef(loadAllCanvasPositions());
+  const initialNodes = useMemo(() => {
+    const saved = loadAllCanvasPositions();
+    return cloneNodes(STATIC_BASE_NODES).map((n) => {
+      const p = saved[n.id];
+      return p ? { ...n, position: p } : n;
+    });
+  }, []);
+  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(cloneEdges(STATIC_BASE_EDGES));
 
   const onConnect = useCallback(
     (connection: Connection) => setEdges((eds) => addEdge({ ...connection, animated: true }, eds)),
     [setEdges]
+  );
+
+  const onNodeDragStop: NodeMouseHandler = useCallback(
+    (_event, node) => {
+      const pos = { x: node.position.x, y: node.position.y };
+      saveCanvasPosition(node.id, pos);
+      if (node.id.startsWith(SP_PREFIX)) {
+        const agentId = node.id.slice(SP_PREFIX.length);
+        if (agentId && !agentId.startsWith("idx-")) {
+          void saveCanvasAgentPosition(agentId, pos).catch(() => {
+            /* DB optional */
+          });
+        }
+      }
+    },
+    []
   );
 
   const onNodeClick: NodeMouseHandler = useCallback(
@@ -214,18 +254,28 @@ function FlowSurface({
 
     const pulse = status === "running";
 
-    setNodes(() => {
-      const base = cloneNodes(STATIC_BASE_NODES).filter(
-        (n) => !n.id.startsWith(SP_PREFIX) && !n.id.startsWith(SUB_NODE_PREFIX)
-      );
+    setNodes((currentNodes) => {
+      const posById = new Map(currentNodes.map((n) => [n.id, n.position]));
+      const pickPos = (id: string, agent: SpecialistAgentProfile | undefined, fallback: { x: number; y: number }) =>
+        posById.get(id) ?? resolveNodePosition(id, agent, fallback);
+
+      const base = cloneNodes(STATIC_BASE_NODES)
+        .filter((n) => !n.id.startsWith(SP_PREFIX) && !n.id.startsWith(SUB_NODE_PREFIX))
+        .map((n) => {
+          const p = posById.get(n.id) ?? loadCanvasPosition(n.id) ?? savedStaticRef.current[n.id];
+          return p ? { ...n, position: p } : n;
+        });
       let list: Node[] = base;
 
       if (!pending) {
         const positions = layoutAgentGrid(specialists.length);
-        const specNodes: Node[] = specialists.map((p, i) => ({
-          id: agentNodeId(p, i),
+        const specNodes: Node[] = specialists.map((p, i) => {
+          const id = agentNodeId(p, i);
+          const fallback = positions[i] ?? { x: 248, y: 318 };
+          return {
+          id,
           type: "specialist",
-          position: positions[i] ?? { x: 248, y: 318 },
+          position: pickPos(id, p, fallback),
           data: {
             name: p.name,
             role: p.role,
@@ -233,7 +283,8 @@ function FlowSurface({
             lane: p.canvasLane ?? "general",
             isLatest: activeMissionId != null && p.missionId === activeMissionId
           }
-        }));
+        };
+        });
         list = [...base, ...specNodes];
 
         const activeLead =
@@ -250,23 +301,27 @@ function FlowSurface({
           const leadPos = positions[leadIdx >= 0 ? leadIdx : 0] ?? { x: 248, y: 318 };
           const leadCenterX = leadPos.x + 110;
           const positionsSubs = layoutSubAgentPositions(subs.length, leadCenterX);
-          const subNodes: Node[] = subs.map((s, i) => ({
-            id: `${SUB_NODE_PREFIX}${s.id}`,
+          const subNodes: Node[] = subs.map((s, i) => {
+            const subId = `${SUB_NODE_PREFIX}${s.id}`;
+            const fallback = positionsSubs[i] ?? { x: 80 + i * 210, y: leadPos.y + 150 };
+            return {
+            id: subId,
             type: "subAgent",
-            position: positionsSubs[i] ?? { x: 80 + i * 210, y: leadPos.y + 150 },
+            position: pickPos(subId, undefined, fallback),
             data: {
               role: s.role,
               focus: s.focus,
               kind: inferSubAgentKind(s.role)
             }
-          }));
+          };
+          });
           list = [...list, ...subNodes];
         }
       }
 
       return list.map((node) => {
-        const baseData = { ...(node.data as object), pulse };
-        let data = baseData;
+        const baseData: Record<string, unknown> = { ...(node.data as Record<string, unknown>), pulse };
+        let data: Record<string, unknown> = baseData;
         if (node.id === "mother") {
           data = {
             ...baseData,
@@ -350,6 +405,7 @@ function FlowSurface({
       onNodesChange={onNodesChange}
       onEdgesChange={onEdgesChange}
       onConnect={onConnect}
+      onNodeDragStop={onNodeDragStop}
       onNodeClick={onNodeClick}
       nodeTypes={nodeTypes}
       fitView
@@ -393,7 +449,7 @@ export function MissionCanvas({
   motherProgressHistory
 }: MissionCanvasProps) {
   return (
-    <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-b from-[#050f1f] via-[#061222] to-[#030914] shadow-inner shadow-black/40">
+    <section className="flex h-full min-h-[min(56vh,560px)] flex-1 flex-col overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-b from-[#050f1f] via-[#061222] to-[#030914] shadow-inner shadow-black/40">
       <header className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-3 sm:px-5">
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-slate">Canvas</p>
@@ -409,7 +465,7 @@ export function MissionCanvas({
         . Klik <span className="text-violet-300">specialist</span> / <span className="text-fuchsia-300">sub-agent</span>{" "}
         untuk dashboard mereka.
       </p>
-      <div className="relative min-h-[420px] flex-1">
+      <div className="relative min-h-0 flex-1">
         <ReactFlowProvider>
           <FlowSurface
             status={status}

@@ -60,6 +60,7 @@ export async function runMotherQualityReview(params: {
     : "";
 
   try {
+    const motherTimeout = Number(process.env.MOTHER_LLM_TIMEOUT_MS ?? "120000");
     const raw = await openAiCompatibleChatCompletion({
       messages: [
         {
@@ -79,7 +80,8 @@ export async function runMotherQualityReview(params: {
         }
       ],
       maxTokens: 1800,
-      temperature: 0.3
+      temperature: 0.3,
+      timeoutMs: Number.isFinite(motherTimeout) && motherTimeout > 10_000 ? motherTimeout : 120_000
     });
 
     const data = extractJsonObject(raw) as {

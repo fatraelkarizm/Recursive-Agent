@@ -39,8 +39,8 @@ export function MotherThoughtCloud({ active, current, history }: MotherThoughtCl
           {history
             .slice(-6)
             .reverse()
-            .map((h) => (
-              <li key={`${h.at}-${h.phase}`} className="flex gap-2">
+            .map((h, i) => (
+              <li key={`${h.at}-${h.phase}-${i}`} className="flex gap-2">
                 <span className="shrink-0 text-electric/70">◦</span>
                 <span className="truncate">{h.label}</span>
               </li>

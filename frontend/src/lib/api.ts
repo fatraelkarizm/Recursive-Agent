@@ -39,6 +39,20 @@ export async function previewExtract(payload: { url: string; query?: string }): 
   return data;
 }
 
+export async function saveCanvasAgentPosition(
+  agentId: string,
+  position: { x: number; y: number }
+): Promise<void> {
+  const response = await fetch(`${BACKEND_URL}/api/agents/${encodeURIComponent(agentId)}/position`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(position)
+  });
+  if (!response.ok) {
+    throw new Error("Failed to save canvas position");
+  }
+}
+
 export async function fetchCanvasAgents(): Promise<StoredCanvasAgent[]> {
   const response = await fetch(`${BACKEND_URL}/api/agents`, { method: "GET" });
   if (!response.ok) {

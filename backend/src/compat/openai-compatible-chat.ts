@@ -96,6 +96,8 @@ export async function openAiCompatibleChatCompletion(params: {
   messages: ChatMessage[];
   maxTokens?: number;
   temperature?: number;
+  /** Override default OPENAI_COMPAT_TIMEOUT_MS (Mother/long jobs need more). */
+  timeoutMs?: number;
 }): Promise<string> {
   const base = process.env.OPENAI_COMPAT_BASE_URL?.trim();
   const apiKey = (process.env.OPENAI_COMPAT_API_KEY ?? process.env.DEEPSEEK_API_KEY)?.trim();
@@ -105,7 +107,9 @@ export async function openAiCompatibleChatCompletion(params: {
     throw new Error("OPENAI_COMPAT_BASE_URL and a bearer key (OPENAI_COMPAT_API_KEY or DEEPSEEK_API_KEY) are required");
   }
 
-  const timeoutMs = Number(process.env.OPENAI_COMPAT_TIMEOUT_MS ?? "45000");
+  const timeoutMs =
+    params.timeoutMs ??
+    Number(process.env.OPENAI_COMPAT_TIMEOUT_MS ?? "45000");
   const maxTokens = params.maxTokens ?? 200;
   const temperature = params.temperature ?? 0.7;
   const request = {

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Copy, ExternalLink, X } from "lucide-react";
 import { fetchRuntimeDiagnostics } from "@/lib/api";
-import { extractFirstHtmlFence } from "@/lib/extract-html-fence";
+import { extractFirstHtmlFence, findReadmeWithHtmlFence } from "@/lib/extract-html-fence";
 import { extractHttpUrlsFromText } from "@/lib/extract-urls";
 import type {
   FleetOrchestrationSummary,
@@ -17,13 +17,14 @@ export type AgentDashboardTarget =
   | { kind: "specialist"; index: number }
   | { kind: "sub"; subId: string };
 
-type TabId = "overview" | "config" | "task" | "keys" | "readme" | "preview" | "result";
+type TabId = "overview" | "config" | "task" | "keys" | "skill" | "readme" | "preview" | "result";
 
 const TABS: { id: TabId; label: string }[] = [
   { id: "overview", label: "Ringkas" },
   { id: "config", label: "Config" },
   { id: "task", label: "Task" },
   { id: "keys", label: "API & tools" },
+  { id: "skill", label: "SKILL.md" },
   { id: "readme", label: "README.md" },
   { id: "preview", label: "Live preview" },
   { id: "result", label: "Hasil" }
@@ -67,7 +68,8 @@ export function AgentDashboardModal({
     if ("agentId" in target && target.agentId) {
       return specialists.find((s) => s.persistedId === target.agentId || `idx-${specialists.indexOf(s)}` === target.agentId);
     }
-    return specialists[target.index];
+    if ("index" in target) return specialists[target.index];
+    return undefined;
   }, [target, specialists]);
 
   const fleetForView = useMemo(() => {
@@ -75,14 +77,26 @@ export function AgentDashboardModal({
     return fleetSummary;
   }, [activeMissionId, fleetSummary]);
 
-  const readmeMd = useMemo(() => {
+  const skillMd = useMemo(() => {
     if (!open || !target) return "";
     if (target.kind === "sub") {
       const lead =
         specialists.find((s) => s.missionId === activeMissionId) ?? specialists[0];
-      return lead?.readmeMd ?? "";
+      return lead?.skillMd ?? "";
     }
-    return activeSpecialist?.readmeMd ?? "";
+    return activeSpecialist?.skillMd ?? "";
+  }, [open, target, specialists, activeSpecialist, activeMissionId]);
+
+  const readmeMd = useMemo(() => {
+    if (!open || !target) return "";
+    if (target.kind === "sub") {
+      const missionSquad = specialists.filter((s) => s.missionId === activeMissionId);
+      const pool = missionSquad.length ? missionSquad : specialists;
+      return findReadmeWithHtmlFence(pool);
+    }
+    const own = activeSpecialist?.readmeMd ?? "";
+    if (own && extractFirstHtmlFence(own)) return own;
+    return findReadmeWithHtmlFence(specialists);
   }, [open, target, specialists, activeSpecialist, activeMissionId]);
 
   const previewHtml = useMemo(() => extractFirstHtmlFence(readmeMd), [readmeMd]);
@@ -114,8 +128,15 @@ export function AgentDashboardModal({
     if (!open || !target) return;
     const readmeForDefault =
       target.kind === "sub"
-        ? (specialists.find((s) => s.missionId === activeMissionId)?.readmeMd ?? specialists[0]?.readmeMd ?? "")
-        : (activeSpecialist?.readmeMd ?? "");
+        ? findReadmeWithHtmlFence(
+            specialists.filter((s) => s.missionId === activeMissionId).length
+              ? specialists.filter((s) => s.missionId === activeMissionId)
+              : specialists
+          )
+        : (() => {
+            const own = activeSpecialist?.readmeMd ?? "";
+            return own && extractFirstHtmlFence(own) ? own : findReadmeWithHtmlFence(specialists);
+          })();
     const html = extractFirstHtmlFence(readmeForDefault);
     const next: TabId = html ? "preview" : readmeForDefault.trim().length > 0 ? "readme" : "overview";
     const id = requestAnimationFrame(() => setTab(next));
@@ -448,6 +469,34 @@ export function AgentDashboardModal({
                 (atau <strong className="text-white">OPENCLAW_ORCHESTRATION</strong> bukan 0 + CLI OpenClaw). Tavily
                 untuk riset: <strong className="text-white">TAVILY_API_KEY</strong>.
               </p>
+            </div>
+          )}
+
+          {tab === "skill" && (
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs text-slate">
+                  Playbook agent: skills, tools, larangan — dipakai Mother & fleet.
+                </p>
+                {skillMd.trim() ? (
+                  <button
+                    type="button"
+                    className="shrink-0 rounded border border-white/15 bg-white/5 px-2 py-1 text-[10px] text-electric hover:bg-white/10"
+                    onClick={() => void navigator.clipboard.writeText(skillMd)}
+                  >
+                    Copy SKILL
+                  </button>
+                ) : null}
+              </div>
+              {skillMd.trim() ? (
+                <pre className="max-h-[min(68vh,680px)] overflow-auto whitespace-pre-wrap rounded-lg border border-violet-400/20 bg-violet-500/5 p-3 font-mono text-[12px] leading-relaxed text-slate-100 sm:text-[13px]">
+                  {skillMd}
+                </pre>
+              ) : (
+                <p className="text-sm text-slate">
+                  Belum ada SKILL.md — jalankan misi lagi setelah restart backend.
+                </p>
+              )}
             </div>
           )}
 

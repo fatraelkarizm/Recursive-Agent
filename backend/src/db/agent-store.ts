@@ -109,3 +109,34 @@ export async function updateCanvasAgentProfile(
     }
   });
 }
+
+export async function updateCanvasAgentPosition(
+  agentId: string,
+  position: { x: number; y: number }
+): Promise<boolean> {
+  const db = getPrismaClient();
+  if (!db) return false;
+
+  const row = await db.canvasAgent.findUnique({ where: { id: agentId } });
+  if (!row) return false;
+
+  const base =
+    row.profileJson && typeof row.profileJson === "object"
+      ? (row.profileJson as SpecialistAgentProfile)
+      : ({} as SpecialistAgentProfile);
+
+  const profile: SpecialistAgentProfile = {
+    ...base,
+    name: row.name,
+    role: row.role,
+    purpose: row.purpose,
+    canvasPosition: position,
+    persistedId: agentId
+  };
+
+  await db.canvasAgent.update({
+    where: { id: agentId },
+    data: { profileJson: profile }
+  });
+  return true;
+}

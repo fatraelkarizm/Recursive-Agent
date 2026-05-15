@@ -8,8 +8,14 @@ import { runToolRoute } from "./tool-router";
 import { runSandboxTask } from "../sandbox/e2b";
 import { browserTouchFromPrompt } from "../capabilities/browser";
 import { enrichProfileReadmeWithSumopod } from "../compat/openai-compatible-chat";
-import { ensureLeadHtmlDeliverable, missionWantsHtmlDeliverable } from "./mother-deliverable";
+import {
+  ensureLeadHtmlDeliverable,
+  ensureSquadHtmlDeliverables,
+  missionWantsHtmlDeliverable
+} from "./mother-deliverable";
 import { runMotherQualityReview } from "./mother-review";
+import { runMotherWebResearch } from "./mother-research";
+import { attachSpecialistArtifacts } from "./specialist-artifacts";
 import { updateCanvasAgentProfile } from "../db/agent-store";
 import { persistMissionResult } from "../db/mission-store";
 import type { MissionProgressEmitter } from "./mission-progress";
@@ -28,12 +34,36 @@ export async function runMission(
   const effectivePrompt = buildEffectiveMissionPrompt(payload);
 
   emit({
+    phase: "tools",
+    label: "Mother riset web (Tavily)",
+    detail: "Mencari referensi & tren sebelum merancang squad"
+  });
+  const webResearch = await runMotherWebResearch(effectivePrompt);
+
+  const synthPayload: MissionPayload = {
+    ...payload,
+    preferTavilySearch: true,
+    contextNotes: [
+      payload.contextNotes?.trim(),
+      "## Riset web (Tavily — otomatis sebelum spawn)",
+      webResearch
+    ]
+      .filter(Boolean)
+      .join("\n\n")
+  };
+
+  emit({
     phase: "mother-planning",
     label: "Mother berpikir…",
     detail: "Mendekomposisi misi dan merancang squad specialist"
   });
 
-  const { squad, motherBrief, source, parseError } = await synthesizeSquadFromMother(payload);
+  const synthPrompt = buildEffectiveMissionPrompt(synthPayload);
+  const { squad, motherBrief, source, parseError } = await synthesizeSquadFromMother(synthPayload);
+
+  for (const member of squad) {
+    attachSpecialistArtifacts(member, synthPrompt);
+  }
 
   emit({
     phase: "mother-spawn",
@@ -49,18 +79,20 @@ export async function runMission(
 
   const lead = squad[0];
   let htmlDeliverableNote: string | null = null;
-  if (missionWantsHtmlDeliverable(effectivePrompt)) {
+  if (missionWantsHtmlDeliverable(synthPrompt)) {
     emit({
       phase: "specialist-readme",
       label: "Mother menulis deliverable HTML",
-      detail: lead.name
+      detail: squad.map((s) => s.canvasLane ?? "general").join(" + ")
     });
-    const added = await ensureLeadHtmlDeliverable(lead, effectivePrompt);
-    if (added) {
-      htmlDeliverableNote = "Mother: HTML deliverable generated for lead specialist README.";
-    } else if (source === "fallback-rules") {
+    const added = await ensureSquadHtmlDeliverables(squad, synthPrompt, { webResearch });
+    if (added > 0) {
+      htmlDeliverableNote = `Mother: HTML deliverable untuk ${added} specialist (frontend README).`;
+    } else {
       htmlDeliverableNote =
-        "Mother: HTML deliverable gagal — cek gateway/model. Parse error: " + (parseError ?? "n/a");
+        source === "fallback-rules" && parseError
+          ? `Mother: rencana LLM gagal (${parseError.slice(0, 120)}). HTML belum terbuat — coba lagi tanpa refresh saat mission jalan.`
+          : "Mother: HTML deliverable belum terbuat — cek gateway qwen3.6-plus di SumoPod.";
     }
   }
 
@@ -78,6 +110,7 @@ export async function runMission(
   const profile = squad[0];
   const graph = buildMissionGraph(profile);
   const events: string[] = [];
+  events.push(`Mother research:\n${webResearch.slice(0, 1200)}${webResearch.length > 1200 ? "…" : ""}`);
   if (htmlDeliverableNote) events.push(htmlDeliverableNote);
   if (parseError && source === "fallback-rules") {
     events.push(`Mother: JSON parse error — ${parseError}`);
@@ -156,9 +189,10 @@ export async function runMission(
     });
     for (const v of reworkTargets) {
       const agent = squad.find((s) => s.name === v.agentName) ?? lead;
-      const ok = await ensureLeadHtmlDeliverable(agent, effectivePrompt, {
+      const ok = await ensureLeadHtmlDeliverable(agent, synthPrompt, {
         revisionNotes: v.instructions ?? "Perbaiki deliverable agar sesuai misi user.",
-        force: true
+        force: true,
+        webResearch
       });
       if (ok) events.push(`Mother: rework selesai untuk ${agent.name}`);
     }

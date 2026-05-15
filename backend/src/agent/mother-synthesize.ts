@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { MissionPayload, SpecialistAgentProfile, SubAgentDescriptor } from "../types";
 import { isOpenAiCompatConfigured, openAiCompatibleChatCompletion } from "../compat/openai-compatible-chat";
 import { buildEffectiveMissionPrompt } from "./mission-prompt";
-import { buildSpecialistReadme } from "./specialist-artifacts";
+import { attachSpecialistArtifacts } from "./specialist-artifacts";
 import { inferSpecialistSquad } from "./squad-inference";
 import { logger } from "../logging";
 
@@ -120,9 +120,12 @@ function toProfile(s: z.infer<typeof specialistLiteSchema>, missionPrompt: strin
     canvasLane: s.canvasLane ?? "general"
   };
 
-  profile.readmeMd = buildSpecialistReadme(profile, missionPrompt);
+  attachSpecialistArtifacts(profile, missionPrompt);
   if (s.readmeOutline?.trim()) {
     profile.readmeMd += ["", "## Rencana Mother", "", s.readmeOutline.trim(), ""].join("\n");
+    profile.skillMd =
+      (profile.skillMd ?? "") +
+      ["", "## Rencana Mother", "", s.readmeOutline.trim(), ""].join("\n");
   }
   return profile;
 }
@@ -150,10 +153,16 @@ const SYSTEM_PROMPT = [
   "}",
   "Rules:",
   "- Do NOT put readmeMd or ```html in JSON — it breaks parsing.",
-  "- Landing page / crypto / HTML missions → 1 specialist, readmeOutline describes the page sections.",
+  "- Landing page / crypto / HTML / UI → ALWAYS 2 specialists: canvasLane frontend + canvasLane backend, each with skills[] and readmeOutline.",
+  "- Never use role general-specialist-agent for web/UI missions.",
   "- Never default to article/CMS unless user asked for CMS.",
   "- Match user language (Indonesian if user writes Indonesian)."
 ].join("\n");
+
+function motherLlmTimeoutMs(): number {
+  const n = Number(process.env.MOTHER_LLM_TIMEOUT_MS ?? "120000");
+  return Number.isFinite(n) && n > 10_000 ? n : 120_000;
+}
 
 async function callMotherPlan(effectivePrompt: string, temperature: number): Promise<string> {
   return openAiCompatibleChatCompletion({
@@ -162,7 +171,8 @@ async function callMotherPlan(effectivePrompt: string, temperature: number): Pro
       { role: "user", content: effectivePrompt }
     ],
     maxTokens: 2800,
-    temperature
+    temperature,
+    timeoutMs: motherLlmTimeoutMs()
   });
 }
 

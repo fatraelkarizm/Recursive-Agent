@@ -21,7 +21,10 @@ export function KnowledgePanel({
   agentCount = 0
 }: KnowledgePanelProps) {
   const hasContext = Boolean(bundle.contextNotes?.trim());
-  const urls = (bundle.referenceUrls ?? []).filter((u) => u.trim());
+  const urls = bundle.referenceUrlsText
+    .split(/\r?\n/)
+    .map((u) => u.trim())
+    .filter(Boolean);
   const hasReview = Boolean(bundle.motherReviewNotes?.trim());
 
   return (
@@ -89,8 +92,11 @@ export function KnowledgePanel({
           <article className="rounded-lg border border-electric/20 bg-electric/5 p-3">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-electric/90">Timeline proses</p>
             <ol className="mt-2 space-y-1.5">
-              {progress.map((p) => (
-                <li key={`${p.at}-${p.phase}`} className="flex flex-col gap-0.5 border-l border-electric/30 pl-2">
+              {progress.map((p, i) => (
+                <li
+                  key={`${p.at}-${p.phase}-${i}-${p.label}`}
+                  className="flex flex-col gap-0.5 border-l border-electric/30 pl-2"
+                >
                   <span className="font-medium text-white/90">{p.label}</span>
                   {p.detail ? <span className="text-[10px] text-slate/75 line-clamp-2">{p.detail}</span> : null}
                 </li>

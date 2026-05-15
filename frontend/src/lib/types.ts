@@ -25,6 +25,8 @@ export type SpecialistAgentProfile = {
   subAgents?: SubAgentDescriptor[];
   skills: SpecialistSkill[];
   readmeMd: string;
+  skillMd?: string;
+  canvasPosition?: { x: number; y: number };
   canvasLane?: "frontend" | "backend" | "general";
   persistedId?: string;
   missionId?: string;

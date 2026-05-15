@@ -17,9 +17,11 @@ export type MissionProgressEvent = {
   at: string;
 };
 
-export type MissionProgressEmitter = (event: Omit<MissionProgressEvent, "at">) => void;
+export type MissionProgressEmitter = (event: MissionProgressEvent) => void;
 
-export function createProgressEmitter(onEvent?: MissionProgressEmitter): MissionProgressEmitter {
+export function createProgressEmitter(
+  onEvent?: MissionProgressEmitter
+): (event: Omit<MissionProgressEvent, "at">) => void {
   return (event) => {
     onEvent?.({
       ...event,

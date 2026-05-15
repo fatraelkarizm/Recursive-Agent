@@ -8,7 +8,7 @@ import { logger } from "./logging";
 import { runMission } from "./agent/mother-agent";
 import { tavilyExtractOne } from "./capabilities/tavily-extract-one";
 import { getPublicRuntimeDiagnostics } from "./public-runtime-diagnostics";
-import { listCanvasAgents } from "./db/agent-store";
+import { listCanvasAgents, updateCanvasAgentPosition } from "./db/agent-store";
 
 // Load env robustly:
 // - sometimes the server is started from repo root vs from `backend/`
@@ -52,6 +52,30 @@ app.get("/health", (_req, res) => {
 /** Safe worker/env snapshot for dashboard "Config" tab (no secret values). */
 app.get("/api/runtime-config", (_req, res) => {
   res.json(getPublicRuntimeDiagnostics());
+});
+
+const canvasPositionSchema = z.object({
+  x: z.number().finite(),
+  y: z.number().finite()
+});
+
+/** Persist React Flow node position for a canvas agent. */
+app.patch("/api/agents/:id/position", async (req, res) => {
+  const parsed = canvasPositionSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ message: "Invalid position" });
+  }
+  const id = String(req.params.id ?? "").trim();
+  if (!id) return res.status(400).json({ message: "Missing agent id" });
+
+  try {
+    const ok = await updateCanvasAgentPosition(id, parsed.data);
+    if (!ok) return res.status(404).json({ message: "Agent not found or DB unavailable" });
+    return res.json({ ok: true });
+  } catch (error) {
+    logger.error({ error, id }, "Failed to update canvas position");
+    return res.status(500).json({ message: "Failed to save position" });
+  }
 });
 
 /** All persisted canvas agents (survives page refresh). */
@@ -129,17 +153,24 @@ app.post("/api/missions/stream", async (req, res) => {
     res.write(`data: ${JSON.stringify(data)}\n\n`);
   };
 
+  const safeWrite = (event: string, data: unknown) => {
+    if (res.writableEnded) return;
+    write(event, data);
+  };
+
+  const missionPromise = runMission(parsed.data, (progress) => {
+    safeWrite("progress", progress);
+  });
+
   try {
-    const result = await runMission(parsed.data, (progress) => {
-      write("progress", progress);
-    });
-    write("done", result);
+    const result = await missionPromise;
+    safeWrite("done", result);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Mission failed";
     logger.error({ error }, "Mission stream failed");
-    write("error", { message });
+    safeWrite("error", { message });
   } finally {
-    res.end();
+    if (!res.writableEnded) res.end();
   }
 });
 

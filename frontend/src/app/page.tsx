@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { nanoid } from "nanoid";
 import { AppHeader } from "@/components/app-header";
 import { ControlChatPanel } from "@/components/control-chat-panel";
@@ -74,8 +74,6 @@ export default function Page() {
   const [progress, setProgress] = useState<MissionProgressEvent[]>([]);
   const [progressCurrent, setProgressCurrent] = useState<MissionProgressEvent | null>(null);
   const [agentsLoaded, setAgentsLoaded] = useState(false);
-  const abortRef = useRef<AbortController | null>(null);
-
   const loadAgents = useCallback(async () => {
     try {
       const rows = await fetchCanvasAgents();
@@ -117,10 +115,6 @@ export default function Page() {
   async function handleRunMission() {
     if (!prompt.trim() || busy) return;
 
-    abortRef.current?.abort();
-    const ac = new AbortController();
-    abortRef.current = ac;
-
     setBusy(true);
     setStatus("running");
     setProgress([]);
@@ -135,7 +129,6 @@ export default function Page() {
           ...motherBundleToMissionExtras(motherBundle)
         },
         {
-          signal: ac.signal,
           onProgress: (event) => {
             setProgressCurrent(event);
             setProgress((prev) => [...prev, event]);
@@ -167,7 +160,6 @@ export default function Page() {
             ]);
           },
           onError: (message) => {
-            if (ac.signal.aborted) return;
             setStatus("failed");
             setMessages((current) => [
               ...current,
@@ -177,7 +169,6 @@ export default function Page() {
         }
       );
     } catch (error) {
-      if (ac.signal.aborted) return;
       console.error(error);
       setStatus("failed");
       setMessages((current) => [
@@ -191,10 +182,8 @@ export default function Page() {
         }
       ]);
     } finally {
-      if (!ac.signal.aborted) {
-        setBusy(false);
-        setProgressCurrent(null);
-      }
+      setBusy(false);
+      setProgressCurrent(null);
     }
   }
 
@@ -224,9 +213,10 @@ export default function Page() {
       <div className="flex min-h-0 flex-1">
         <WorkspaceRail selectedId={selectedRecipeId} onSelectRecipe={handleSelectRecipe} />
 
-        <section className="flex min-w-0 flex-1 flex-col gap-3 p-4 sm:gap-4 sm:p-5">
+        <section className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 p-4 sm:gap-3 sm:p-5">
+          <div className="flex min-h-0 flex-[1] flex-col">
           {!agentsLoaded ? (
-            <div className="flex min-h-[420px] flex-1 items-center justify-center rounded-xl border border-white/10 text-sm text-slate">
+            <div className="flex min-h-[min(60vh,520px)] flex-1 items-center justify-center rounded-xl border border-white/10 text-sm text-slate">
               Memuat agent dari database…
             </div>
           ) : (
@@ -241,7 +231,8 @@ export default function Page() {
               motherProgressHistory={progress}
             />
           )}
-          <div className="grid shrink-0 grid-cols-1 gap-3 lg:grid-cols-3">
+          </div>
+          <div className="grid max-h-[min(28vh,240px)] shrink-0 grid-cols-1 gap-2 overflow-hidden lg:grid-cols-3">
             <KnowledgePanel
               bundle={motherBundle}
               motherBrief={motherBrief}

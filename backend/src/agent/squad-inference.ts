@@ -1,5 +1,5 @@
 import type { SpecialistAgentProfile } from "../types";
-import { buildSpecialistReadme, buildSpecialistSkills } from "./specialist-artifacts";
+import { attachSpecialistArtifacts, buildSpecialistSkills } from "./specialist-artifacts";
 import { buildSubAgents, inferSpecializations, pickOrchestrationMode } from "./specializations";
 
 function randomId(length = 8): string {
@@ -28,14 +28,19 @@ function isWebStackPrompt(p: string): boolean {
 function wantsFrontendBackendSquad(p: string): boolean {
   const x = p.toLowerCase();
   if (!isWebStackPrompt(x)) return false;
+  if (/(landing|landing\s*page|halaman|homepage|one-?page|crypto|saas|ui|html|css)/i.test(x)) {
+    return true;
+  }
   if (
-    /(cms|content\s*management|artikel|article|blog|editorial|e-?commerce|marketplace|saas|platform|dashboard|admin|portal|full\s*stack|fullstack|lipat|depan\s*dan\s*belakang|frontend\s*(dan|&|\+)\s*backend|backend\s*(dan|&|\+)\s*frontend|ui\s*(dan|&|\+)\s*api|api\s*(dan|&|\+)\s*database|buat\s+web|bikin\s+web|bangun\s+web|situs|aplikasi\s+web)/i.test(
+    /(cms|content\s*management|artikel|article|blog|editorial|e-?commerce|marketplace|platform|dashboard|admin|portal|full\s*stack|fullstack|lipat|depan\s*dan\s*belakang|frontend\s*(dan|&|\+)\s*backend|backend\s*(dan|&|\+)\s*frontend|ui\s*(dan|&|\+)\s*api|api\s*(dan|&|\+)\s*database|buat\s+web|bikin\s+web|bangun\s+web|situs|aplikasi\s+web)/i.test(
       x
     )
   ) {
     return true;
   }
-  if (/(buat|bikin|bangun).{0,48}(web|website|aplikasi|situs)/i.test(x) && x.length > 22) return true;
+  if (/(buat|bikin|bangun).{0,60}(web|website|aplikasi|situs|landing|halaman|page|html|ui|crypto)/i.test(x)) {
+    return true;
+  }
   return false;
 }
 
@@ -79,7 +84,7 @@ function buildSingletonSpecialist(prompt: string): SpecialistAgentProfile {
     canvasLane: "general"
   };
 
-  profile.readmeMd = buildSpecialistReadme(profile, prompt);
+  attachSpecialistArtifacts(profile, prompt);
   return profile;
 }
 
@@ -114,7 +119,7 @@ function buildFrontendSpecialist(prompt: string): SpecialistAgentProfile {
     canvasLane: "frontend"
   };
 
-  profile.readmeMd = buildSpecialistReadme(profile, prompt);
+  attachSpecialistArtifacts(profile, prompt);
   return profile;
 }
 
@@ -145,7 +150,7 @@ function buildBackendSpecialist(prompt: string): SpecialistAgentProfile {
     canvasLane: "backend"
   };
 
-  profile.readmeMd = buildSpecialistReadme(profile, prompt);
+  attachSpecialistArtifacts(profile, prompt);
   return profile;
 }
 

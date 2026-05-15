@@ -14,6 +14,7 @@ import {
   type Connection,
   type Edge,
   type Node,
+  type NodeMouseHandler,
   type NodeTypes
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
@@ -26,6 +27,7 @@ import {
   TriggerNode
 } from "@/components/workflow-nodes";
 import type { SpecialistAgentProfile } from "@/lib/types";
+import type { AgentDashboardTarget } from "@/components/agent-dashboard-modal";
 
 const SUB_NODE_PREFIX = "sub-node-";
 const SP_PREFIX = "specialist-sp-";
@@ -146,15 +148,31 @@ function isPlaceholderProfile(profile: SpecialistAgentProfile): boolean {
 type FlowSurfaceProps = {
   status: string;
   specialists: SpecialistAgentProfile[];
+  onSelectAgent?: (target: AgentDashboardTarget) => void;
 };
 
-function FlowSurface({ status, specialists }: FlowSurfaceProps) {
+function FlowSurface({ status, specialists, onSelectAgent }: FlowSurfaceProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState(cloneNodes(STATIC_BASE_NODES));
   const [edges, setEdges, onEdgesChange] = useEdgesState(cloneEdges(STATIC_BASE_EDGES));
 
   const onConnect = useCallback(
     (connection: Connection) => setEdges((eds) => addEdge({ ...connection, animated: true }, eds)),
     [setEdges]
+  );
+
+  const onNodeClick: NodeMouseHandler = useCallback(
+    (_event, node) => {
+      if (!onSelectAgent) return;
+      if (node.id.startsWith(SP_PREFIX)) {
+        const idx = parseInt(node.id.slice(SP_PREFIX.length), 10);
+        if (!Number.isNaN(idx)) onSelectAgent({ kind: "specialist", index: idx });
+        return;
+      }
+      if (node.id.startsWith(SUB_NODE_PREFIX)) {
+        onSelectAgent({ kind: "sub", subId: node.id.slice(SUB_NODE_PREFIX.length) });
+      }
+    },
+    [onSelectAgent]
   );
 
   useEffect(() => {
@@ -261,6 +279,7 @@ function FlowSurface({ status, specialists }: FlowSurfaceProps) {
       onNodesChange={onNodesChange}
       onEdgesChange={onEdgesChange}
       onConnect={onConnect}
+      onNodeClick={onNodeClick}
       nodeTypes={nodeTypes}
       fitView
       fitViewOptions={{ padding: 0.2 }}
@@ -284,9 +303,10 @@ function FlowSurface({ status, specialists }: FlowSurfaceProps) {
 type MissionCanvasProps = {
   status: string;
   specialists: SpecialistAgentProfile[];
+  onSelectAgent?: (target: AgentDashboardTarget) => void;
 };
 
-export function MissionCanvas({ status, specialists }: MissionCanvasProps) {
+export function MissionCanvas({ status, specialists, onSelectAgent }: MissionCanvasProps) {
   return (
     <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-white/10 bg-gradient-to-b from-[#050f1f] to-[#030914]">
       <header className="flex items-center justify-between border-b border-white/10 px-4 py-3">
@@ -298,9 +318,13 @@ export function MissionCanvas({ status, specialists }: MissionCanvasProps) {
           Status: <span className="text-electric">{status}</span>
         </span>
       </header>
+      <p className="border-b border-white/10 px-4 py-1.5 text-[10px] text-slate">
+        Klik node <span className="text-violet-300">specialist</span> atau <span className="text-fuchsia-300">sub-agent</span>{" "}
+        untuk buka dashboard (tab Task, API, Hasil).
+      </p>
       <div className="relative min-h-[420px] flex-1">
         <ReactFlowProvider>
-          <FlowSurface status={status} specialists={specialists} />
+          <FlowSurface status={status} specialists={specialists} onSelectAgent={onSelectAgent} />
         </ReactFlowProvider>
       </div>
     </section>

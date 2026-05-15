@@ -3,6 +3,17 @@ import type { SubAgentDescriptor } from "../types";
 
 const URL_RE = /https?:\/\/[^\s<>"')]+/i;
 
+/**
+ * When enabled (default), every mission gets fleet-style orchestration (sub-agents + sequential run)
+ * without requiring keywords like "openclaw" or "fleet" in the prompt.
+ * Set `AUTO_ORCHESTRATION=0` to only orchestrate when the user mentions orchestration explicitly.
+ */
+export function isAutoOrchestrationEnabled(): boolean {
+  const v = process.env.AUTO_ORCHESTRATION?.trim().toLowerCase();
+  if (v === "0" || v === "false" || v === "off" || v === "no") return false;
+  return true;
+}
+
 export function inferSpecializations(prompt: string): string[] {
   const p = prompt.toLowerCase();
   const out = new Set<string>();
@@ -13,7 +24,10 @@ export function inferSpecializations(prompt: string): string[] {
   ) {
     out.add("browser-automation");
   }
-  if (/openclaw|open.?claw|orchestrat|multi.?agent|delegat|sub.?agent|fleet|swarm/.test(p)) {
+  if (
+    isAutoOrchestrationEnabled() ||
+    /openclaw|open.?claw|orchestrat|multi.?agent|delegat|sub.?agent|fleet|swarm/.test(p)
+  ) {
     out.add("openclaw-orchestration");
   }
   if (out.size === 0) {
@@ -23,6 +37,9 @@ export function inferSpecializations(prompt: string): string[] {
 }
 
 export function pickOrchestrationMode(prompt: string): "local" | "openclaw" {
+  if (isAutoOrchestrationEnabled()) {
+    return "openclaw";
+  }
   const p = prompt.toLowerCase();
   if (/openclaw|orchestrat|multi.?agent|delegat|sub.?agent|fleet|swarm/.test(p)) {
     return "openclaw";

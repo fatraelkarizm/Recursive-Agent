@@ -81,7 +81,10 @@ export const SpecialistAgentNode = memo(function SpecialistAgentNode({ data }: N
   const { name, role, skillsPreview, lane } = data as SpecialistNodeData;
   const laneResolved = lane ?? "general";
   return (
-    <div className={`min-w-[220px] max-w-[280px] rounded-xl border-2 px-3 py-3 shadow-lg ${specialistShellClass(laneResolved)}`}>
+    <div
+      className={`min-w-[220px] max-w-[280px] cursor-pointer rounded-xl border-2 px-3 py-3 shadow-lg transition hover:brightness-110 ${specialistShellClass(laneResolved)}`}
+      title="Klik untuk buka dashboard"
+    >
       <Handle
         type="target"
         position={Position.Top}
@@ -135,7 +138,8 @@ export const SubAgentNode = memo(function SubAgentNode({ data }: NodeProps) {
 
   return (
     <div
-      className={`min-w-[176px] max-w-[200px] rounded-xl border-2 px-2.5 py-2.5 shadow-lg ${subAgentBorder(kind)}`}
+      className={`min-w-[176px] max-w-[200px] cursor-pointer rounded-xl border-2 px-2.5 py-2.5 shadow-lg transition hover:brightness-110 ${subAgentBorder(kind)}`}
+      title="Klik untuk buka dashboard"
     >
       <Handle
         type="target"

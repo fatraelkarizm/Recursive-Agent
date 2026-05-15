@@ -1,6 +1,18 @@
 import type { MissionResult } from "../types";
 import { getPrismaClient } from "./prisma";
 
+function buildMissionResultPayload(result: MissionResult): {
+  specialists: MissionResult["profile"][];
+  fleetSummary: MissionResult["fleetSummary"];
+  savedAt: string;
+} {
+  return {
+    specialists: result.specialists ?? [result.profile],
+    fleetSummary: result.fleetSummary ?? undefined,
+    savedAt: new Date().toISOString()
+  };
+}
+
 type MissionStoreClient = {
   mission: {
     upsert(args: unknown): Promise<unknown>;
@@ -45,12 +57,14 @@ export async function persistMissionResult({
       id: result.missionId,
       prompt,
       status: result.status,
-      completedAt
+      completedAt,
+      resultPayload: buildMissionResultPayload(result)
     },
     update: {
       prompt,
       status: result.status,
-      completedAt
+      completedAt,
+      resultPayload: buildMissionResultPayload(result)
     }
   });
 

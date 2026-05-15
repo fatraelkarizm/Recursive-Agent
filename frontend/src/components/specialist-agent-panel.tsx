@@ -91,7 +91,14 @@ export function SpecialistAgentPanel({ profile, variant = "card" }: SpecialistAg
           </div>
         ) : null}
 
-        {profile.readmeMd ? (
+        {profile.readmeMd && variant === "embedded" ? (
+          <p className="border-t border-white/10 pt-2 text-[10px] leading-relaxed text-slate">
+            README.md (HTML/CSS & artefak) ada di{" "}
+            <span className="font-medium text-electric">Dashboard</span> → tab{" "}
+            <span className="font-medium text-electric">README.md</span>, atau klik node di canvas.
+          </p>
+        ) : null}
+        {profile.readmeMd && variant !== "embedded" ? (
           <div className="border-t border-white/10 pt-2">
             <div className="mb-1 flex items-center justify-between gap-2">
               <span className="text-slate">README.md (mother-generated)</span>

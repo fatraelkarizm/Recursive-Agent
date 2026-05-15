@@ -37,6 +37,7 @@ The worker then runs (in order):
 |----------|---------|
 | `TAVILY_API_KEY` | **Required** for Tavily Extract + Tavily Search in the worker. |
 | `OPENCLAW_ORCHESTRATION` | Set to `0` to skip OpenClaw calls entirely. |
+| `AUTO_ORCHESTRATION` | Default **on** (unset or `1`): every mission gets sub-agent fleet orchestration without keywords in the prompt. Set `0` to orchestrate only when the user mentions fleet / OpenClaw / multi-agent. |
 | `OPENCLAW_BIN` | Override binary name/path (default `openclaw`). |
 | `OPENCLAW_ORCHESTRATOR_AGENT` | `--agent` id (default `main`). |
 | `OPENCLAW_SESSION_PREFIX` | Optional prefix for `--session-id` (`recursive-agent-<missionId>` if unset). |

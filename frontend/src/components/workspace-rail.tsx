@@ -52,6 +52,7 @@ const RECIPES: WorkspaceRecipe[] = [
 
 const INTEGRATIONS = [
   { name: "Mother agent API", detail: "POST /api/missions", tone: "text-electric" },
+  { name: "Runtime config", detail: "GET /api/runtime-config (model/env, no secrets)", tone: "text-electric" },
   { name: "OpenClaw CLI", detail: "openclaw agent --json (see docs/OPENCLAW_INTEGRATION.md)", tone: "text-electric" },
   { name: "Tavily", detail: "Extract + Search (TAVILY_API_KEY)", tone: "text-electric" },
   { name: "MCP (hosted)", detail: "Wire in SETUP.md", tone: "text-slate" },

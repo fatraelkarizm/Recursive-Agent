@@ -8,6 +8,7 @@ import { TerminalDrawer } from "@/components/terminal-drawer";
 import { VitalsPanel } from "@/components/vitals-panel";
 import { WorkspaceRail, type WorkspaceRecipe } from "@/components/workspace-rail";
 import { createMission } from "@/lib/api";
+import { AgentDashboardModal, type AgentDashboardTarget } from "@/components/agent-dashboard-modal";
 import type { ChatMessage, FleetOrchestrationSummary, SpecialistAgentProfile } from "@/lib/types";
 
 const MissionCanvas = dynamic(
@@ -48,6 +49,8 @@ export default function Page() {
   const [selectedRecipeId, setSelectedRecipeId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [fleetSummary, setFleetSummary] = useState<FleetOrchestrationSummary | null>(null);
+  const [lastMissionPrompt, setLastMissionPrompt] = useState("");
+  const [dashTarget, setDashTarget] = useState<AgentDashboardTarget | null>(null);
 
   function handleSelectRecipe(recipe: WorkspaceRecipe) {
     setSelectedRecipeId(recipe.id);
@@ -58,8 +61,10 @@ export default function Page() {
     if (!prompt.trim()) return;
     setBusy(true);
     setStatus("running");
+    const promptTrim = prompt.trim();
+    setLastMissionPrompt(promptTrim);
     try {
-      const result = await createMission({ prompt });
+      const result = await createMission({ prompt: promptTrim });
       setProfile(result.profile);
       setSquad(result.specialists ?? [result.profile]);
       setFleetSummary(result.fleetSummary ?? null);
@@ -98,11 +103,23 @@ export default function Page() {
 
   return (
     <main className="flex h-screen min-h-[720px] flex-col bg-navy text-white">
+      <AgentDashboardModal
+        open={dashTarget !== null}
+        onClose={() => setDashTarget(null)}
+        target={dashTarget}
+        missionPrompt={lastMissionPrompt}
+        specialists={squad}
+        fleetSummary={fleetSummary}
+      />
       <div className="flex min-h-0 flex-1">
         <WorkspaceRail selectedId={selectedRecipeId} onSelectRecipe={handleSelectRecipe} />
 
         <section className="flex min-w-0 flex-1 flex-col gap-3 p-4">
-          <MissionCanvas status={status} specialists={squad} />
+          <MissionCanvas
+            status={status}
+            specialists={squad}
+            onSelectAgent={(t) => setDashTarget(t)}
+          />
           <div className="grid shrink-0 grid-cols-1 gap-3 lg:grid-cols-2">
             <VitalsPanel status={status} />
             <TerminalDrawer events={messages.filter((m) => m.role === "assistant").slice(-1)} />
@@ -118,6 +135,7 @@ export default function Page() {
           profile={profile}
           specialists={squad}
           fleetSummary={fleetSummary}
+          onOpenAgentDashboard={(t) => setDashTarget(t)}
           onRunMission={handleRunMission}
           busy={busy}
         />

@@ -61,6 +61,7 @@ test("persistMissionResult stores mission, generated profile, and ordered events
     ["mission.upsert", "specialistProfile.upsert", "missionEvent.deleteMany", "missionEvent.createMany"]
   );
   assert.match(JSON.stringify(calls[0].args), /mission-test-1/);
+  assert.match(JSON.stringify(calls[0].args), /"resultPayload"/);
   assert.match(JSON.stringify(calls[1].args), /agent-test/);
   assert.match(JSON.stringify(calls[3].args), /"sequence":0/);
   assert.match(JSON.stringify(calls[3].args), /"sequence":1/);

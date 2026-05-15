@@ -8,13 +8,15 @@ datasource db {
 }
 
 model Mission {
-  id          String              @id
-  prompt      String
-  status      String
-  createdAt   DateTime            @default(now())
-  completedAt DateTime?
-  profile     SpecialistProfile?
-  events      MissionEvent[]
+  id            String              @id
+  prompt        String
+  status        String
+  createdAt     DateTime            @default(now())
+  completedAt   DateTime?
+  /** Full mission snapshot: specialists[], fleetSummary, etc. */
+  resultPayload Json?
+  profile       SpecialistProfile?
+  events        MissionEvent[]
 
   @@map("missions")
 }

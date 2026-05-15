@@ -4,6 +4,7 @@ import express from "express";
 import { z } from "zod";
 import { logger } from "./logging";
 import { runMission } from "./agent/mother-agent";
+import { getPublicRuntimeDiagnostics } from "./public-runtime-diagnostics";
 
 const missionSchema = z.object({
   prompt: z.string().min(3)
@@ -15,6 +16,11 @@ app.use(express.json());
 
 app.get("/health", (_req, res) => {
   res.json({ ok: true, service: "autonomous-architect-backend" });
+});
+
+/** Safe worker/env snapshot for dashboard "Config" tab (no secret values). */
+app.get("/api/runtime-config", (_req, res) => {
+  res.json(getPublicRuntimeDiagnostics());
 });
 
 app.post("/api/missions", async (req, res) => {

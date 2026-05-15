@@ -60,3 +60,40 @@ export type MissionResponse = {
   status: "created" | "running" | "completed" | "failed";
   events?: string[];
 };
+
+/** GET /api/runtime-config — safe worker snapshot (no secret values). */
+export type PublicRuntimeDiagnostics = {
+  generatedAt: string;
+  llmGateway: {
+    openAiCompat: {
+      configured: boolean;
+      baseUrlDisplay: string | null;
+      model: string;
+      timeoutMs: number;
+      bearerFrom: "OPENAI_COMPAT_API_KEY" | "DEEPSEEK_API_KEY" | "none";
+      bearerPresent: boolean;
+    };
+    openClaw: {
+      orchestrationEnabled: boolean;
+      orchestrationRaw: string | null;
+      bin: string;
+      agentId: string;
+      model: string | null;
+      useLocal: boolean;
+      timeoutMs: number;
+    };
+  };
+  tools: {
+    tavilyApiKeyPresent: boolean;
+    e2bApiKeyPresent: boolean;
+  };
+  persistence: {
+    databaseUrlPresent: boolean;
+  };
+  fleet: {
+    autoOrchestrationEnabled: boolean;
+    maxTokensPerSub: number;
+    mergeMaxTokens: number;
+  };
+  disclaimer: string;
+};

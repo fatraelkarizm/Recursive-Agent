@@ -32,6 +32,7 @@ The user experience should feel like this:
 - Lets the user manually adjust the agent instructions, settings, and API key references.
 - Uses external tools for research, execution, and integration work.
 - Shows a live operational dashboard with mission state, logs, runtime health, and budget awareness.
+- **Automatic orchestration** (default): every mission spins up scout/worker/reviewer sub-agents and runs the sequential fleet + merged mother report — no need to say "OpenClaw" in the prompt. Set `AUTO_ORCHESTRATION=0` in `backend/.env` to orchestrate only when the user asks for fleet/multi-agent explicitly.
 - Keeps the system bounded with circuit breakers, budgets, and state checkpoints.
 
 ## Why This Fits The Hackathon
@@ -46,6 +47,7 @@ The dashboard follows a **visual workflow builder** metaphor (similar to n8n-sty
 - **Left rail** — Recipes that prefill prompts plus an “API & integrations” strip (mother worker route, MCP, E2B, env files). This is the “palette” for what the system can connect to.
 - **Center canvas** — `@xyflow/react` graph: trigger → mother agent (model / memory / tools) → policy branch → tool-heavy vs sandbox paths. Status rings reflect the latest mission state.
 - **Right column** — **Control chat**: send a mission, read assistant handoffs, and inspect the generated specialist profile under the thread.
+- **Agent dashboard** — Per specialist/sub-agent: tabs include **Config** (worker model/env snapshot via `GET /api/runtime-config` — no secret values), README, live HTML preview, and results.
 - **Below the canvas** — Vitals plus a compact terminal/audit readout fed by the latest assistant message.
 
 ## Suggested Tech Stack

@@ -40,6 +40,7 @@ Build the folder structure first, then wire one feature at a time:
 - [x] Mother agent generates agent profile (worker stub in `backend/src/agent/mother-agent.ts`)
 - [x] Worker orchestration flow (mission graph + tool stub + sandbox stub)
 - [x] Frontend connected to worker (`POST /api/missions` via `frontend/src/lib/api.ts`)
+- [x] Safe runtime diagnostics endpoint (`GET /api/runtime-config`) for dashboard Config tab
 - [ ] One real tool integration (replace stub router with live MCP/Tavily/etc.)
 - [ ] Sandbox execution path hardened (E2B beyond echo)
 - [x] Persistence added (PostgreSQL + Prisma for missions, profiles, and events)

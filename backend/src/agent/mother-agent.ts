@@ -11,11 +11,13 @@ import { enrichProfileReadmeWithSumopod } from "../compat/openai-compatible-chat
 import {
   ensureLeadHtmlDeliverable,
   ensureSquadHtmlDeliverables,
-  missionWantsHtmlDeliverable
+  missionWantsHtmlDeliverable,
+  readmeHasHtmlFence
 } from "./mother-deliverable";
 import { runMotherQualityReview } from "./mother-review";
 import { runMotherWebResearch } from "./mother-research";
 import { attachSpecialistArtifacts } from "./specialist-artifacts";
+import { ensureLeadFleetReady, isAutoOrchestrationEnabled } from "./specializations";
 import { updateCanvasAgentProfile } from "../db/agent-store";
 import { persistMissionResult } from "../db/mission-store";
 import type { MissionProgressEmitter } from "./mission-progress";
@@ -65,6 +67,17 @@ export async function runMission(
     attachSpecialistArtifacts(member, synthPrompt);
   }
 
+  const fleetLead = squad.find((s) => s.canvasLane === "frontend") ?? squad[0];
+  ensureLeadFleetReady(fleetLead, synthPrompt);
+  for (const member of squad) {
+    if (member !== fleetLead && isAutoOrchestrationEnabled()) {
+      member.orchestrationMode = "openclaw";
+      if (!member.specializations.includes("openclaw-orchestration")) {
+        member.specializations = [...member.specializations, "openclaw-orchestration"];
+      }
+    }
+  }
+
   emit({
     phase: "mother-spawn",
     label: "Mother menghasilkan agent",
@@ -107,7 +120,7 @@ export async function runMission(
     }
   }
 
-  const profile = squad[0];
+  const profile = fleetLead;
   const graph = buildMissionGraph(profile);
   const events: string[] = [];
   events.push(`Mother research:\n${webResearch.slice(0, 1200)}${webResearch.length > 1200 ? "…" : ""}`);
@@ -133,28 +146,46 @@ export async function runMission(
   }
 
   let fleetSummary: MissionResult["fleetSummary"];
-  if (profile.subAgents?.length) {
+  if (isAutoOrchestrationEnabled() && profile.subAgents?.length) {
     emit({
       phase: "fleet-run",
-      label: "Fleet sub-agent berjalan",
-      detail: `${profile.subAgents.length} leg sequential`
+      label: "OpenClaw fleet otomatis",
+      detail: `${profile.subAgents.length} sub-agent via OpenClaw (utama) + gateway fallback`
     });
     const fleet = await runSubAgentFleet({
       missionId,
-      motherPrompt: effectivePrompt,
+      motherPrompt: synthPrompt,
       profile,
-      browserContext,
+      browserContext: webResearch,
       onProgress: (subLabel) => {
         emit({ phase: "fleet-run", label: subLabel });
       }
     });
     events.push(...fleet.events);
     fleetSummary = fleet.summary;
+
+    for (const run of fleet.summary.subAgentRuns) {
+      if (run.source === "openclaw" && run.output.length > 80) {
+        const fe = squad.find((s) => s.canvasLane === "frontend");
+        if (fe && run.role.includes("worker") && !readmeHasHtmlFence(fe.readmeMd)) {
+          fe.readmeMd += [
+            "",
+            "---",
+            "",
+            "## Output fleet (OpenClaw worker)",
+            "",
+            run.output.slice(0, 8000),
+            ""
+          ].join("\n");
+        }
+      }
+    }
+
     emit({ phase: "fleet-merge", label: "Mother menggabungkan laporan fleet" });
   } else if (shouldRunOpenClaw(profile)) {
     const oc = await orchestrateViaOpenClaw({
       missionId,
-      motherPrompt: effectivePrompt,
+      motherPrompt: synthPrompt,
       profile
     });
     events.push(oc);

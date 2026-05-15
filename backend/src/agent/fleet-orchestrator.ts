@@ -250,24 +250,27 @@ export async function runSubAgentFleet(params: {
     let output: string | null = null;
     let source: SubAgentRunResult["source"] = "skipped";
     let compatError: string | null = null;
+    const preferOpenClaw = isOpenClawOrchestrationEnabled();
 
-    try {
-      output = await runSubViaOpenAiCompat({
-        motherPrompt: params.motherPrompt,
-        profile: params.profile,
-        sub,
-        priorOutputs: prior,
-        browserContext: params.browserContext
-      });
-      if (output) source = "openai-compat";
-    } catch (err) {
-      compatError = err instanceof Error ? err.message : String(err);
-      gatewayFailures.push(compatError);
-      events.push(`Fleet: OpenAI-compat failed for ${sub.id} — trying OpenClaw if enabled.`);
-    }
+    const runCompat = async () => {
+      try {
+        return await runSubViaOpenAiCompat({
+          motherPrompt: params.motherPrompt,
+          profile: params.profile,
+          sub,
+          priorOutputs: prior,
+          browserContext: params.browserContext
+        });
+      } catch (err) {
+        compatError = err instanceof Error ? err.message : String(err);
+        gatewayFailures.push(compatError);
+        events.push(`Fleet: OpenAI-compat failed for ${sub.id}${preferOpenClaw ? "" : " — trying OpenClaw"}.`);
+        return null;
+      }
+    };
 
-    if (!output) {
-      output = await runSubViaOpenClaw({
+    const runClaw = async () =>
+      runSubViaOpenClaw({
         missionId: params.missionId,
         motherPrompt: params.motherPrompt,
         profile: params.profile,
@@ -275,7 +278,21 @@ export async function runSubAgentFleet(params: {
         priorOutputs: prior,
         browserContext: params.browserContext
       });
+
+    if (preferOpenClaw) {
+      output = await runClaw();
       if (output) source = "openclaw";
+      if (!output) {
+        output = await runCompat();
+        if (output) source = "openai-compat";
+      }
+    } else {
+      output = await runCompat();
+      if (output) source = "openai-compat";
+      if (!output) {
+        output = await runClaw();
+        if (output) source = "openclaw";
+      }
     }
 
     if (!output) {

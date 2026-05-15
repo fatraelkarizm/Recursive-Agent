@@ -1,5 +1,5 @@
 import { nanoid } from "nanoid";
-import type { SubAgentDescriptor } from "../types";
+import type { SpecialistAgentProfile, SubAgentDescriptor } from "../types";
 
 const URL_RE = /https?:\/\/[^\s<>"')]+/i;
 

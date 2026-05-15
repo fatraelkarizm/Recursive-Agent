@@ -197,7 +197,7 @@ export function AgentDashboardModal({
     : `Specialist · ${specialist?.name ?? "Agent"}`;
 
   const skipHint =
-    "Output kosong biasanya karena belum ada gateway LLM (`OPENAI_COMPAT_BASE_URL` + key) atau OpenClaw dimatikan (`OPENCLAW_ORCHESTRATION=0`). Isi `backend/.env` lalu jalankan ulang misi.";
+    "Fleet otomatis: OpenClaw dulu (`OPENCLAW_ORCHESTRATION=1`), lalu gateway SumoPod fallback. Pastikan `openclaw` ada di PATH dan `AUTO_ORCHESTRATION=1` di `backend/.env`.";
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4">

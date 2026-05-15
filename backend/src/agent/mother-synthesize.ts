@@ -154,6 +154,7 @@ const SYSTEM_PROMPT = [
   "Rules:",
   "- Do NOT put readmeMd or ```html in JSON — it breaks parsing.",
   "- Landing page / crypto / HTML / UI → ALWAYS 2 specialists: canvasLane frontend + canvasLane backend, each with skills[] and readmeOutline.",
+  "- orchestrationMode MUST be \"openclaw\" for all specialists. Lead (frontend) MUST include subAgents: scout, worker, reviewer.",
   "- Never use role general-specialist-agent for web/UI missions.",
   "- Never default to article/CMS unless user asked for CMS.",
   "- Match user language (Indonesian if user writes Indonesian)."

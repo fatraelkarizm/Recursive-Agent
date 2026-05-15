@@ -260,7 +260,3 @@ It is a step toward a world where a solopreneur can describe a company-building 
 ## Built For
 
 OpenClaw Agenthon 2026.
-
-## License
-
-MIT

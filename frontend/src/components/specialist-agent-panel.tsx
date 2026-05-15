@@ -1,8 +1,15 @@
-import type { SpecialistAgentProfile } from "@/lib/types";
+import type { SpecialistAgentProfile, SpecialistSkill } from "@/lib/types";
 
 type SpecialistAgentPanelProps = {
   profile: SpecialistAgentProfile;
   variant?: "card" | "embedded";
+};
+
+const kindStyles: Record<SpecialistSkill["kind"], string> = {
+  touch: "border-sky-500/40 bg-sky-950/50 text-sky-100",
+  generate: "border-emerald-500/40 bg-emerald-950/40 text-emerald-100",
+  orchestrate: "border-violet-500/40 bg-violet-950/40 text-violet-100",
+  other: "border-white/20 bg-white/5 text-slate"
 };
 
 export function SpecialistAgentPanel({ profile, variant = "card" }: SpecialistAgentPanelProps) {
@@ -24,6 +31,26 @@ export function SpecialistAgentPanel({ profile, variant = "card" }: SpecialistAg
         <p>
           <span className="text-slate">Purpose:</span> <span className="text-white">{profile.purpose}</span>
         </p>
+
+        <div>
+          <span className="text-slate">Skills</span>
+          <div className="mt-1 flex flex-wrap gap-1.5">
+            {(profile.skills ?? []).length ? (
+              profile.skills.map((s) => (
+                <span
+                  key={s.id}
+                  title={s.description}
+                  className={`inline-block max-w-full truncate rounded border px-2 py-0.5 text-[10px] font-medium ${kindStyles[s.kind]}`}
+                >
+                  {s.label}
+                </span>
+              ))
+            ) : (
+              <span className="text-slate">—</span>
+            )}
+          </div>
+        </div>
+
         <p>
           <span className="text-slate">Tools:</span>{" "}
           <span className="text-white">{profile.allowedTools.join(", ") || "none"}</span>
@@ -59,6 +86,24 @@ export function SpecialistAgentPanel({ profile, variant = "card" }: SpecialistAg
                 </li>
               ))}
             </ul>
+          </div>
+        ) : null}
+
+        {profile.readmeMd ? (
+          <div className="border-t border-white/10 pt-2">
+            <div className="mb-1 flex items-center justify-between gap-2">
+              <span className="text-slate">README.md (mother-generated)</span>
+              <button
+                type="button"
+                className="rounded border border-white/15 bg-white/5 px-2 py-0.5 text-[10px] text-electric hover:bg-white/10"
+                onClick={() => void navigator.clipboard.writeText(profile.readmeMd)}
+              >
+                Copy
+              </button>
+            </div>
+            <pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded border border-white/10 bg-black/40 p-2 font-mono text-[10px] leading-relaxed text-slate-100">
+              {profile.readmeMd}
+            </pre>
           </div>
         ) : null}
       </div>

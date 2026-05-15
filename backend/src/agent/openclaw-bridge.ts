@@ -13,6 +13,10 @@ function buildOrchestrationMessage(
     .map((s) => `- ${s.id} (${s.role}): ${s.focus}`)
     .join("\n");
 
+  const skills = (profile.skills ?? [])
+    .map((s) => `- ${s.label} [${s.kind}]: ${s.description}`)
+    .join("\n");
+
   return [
     "You are the Recursive Agent OpenClaw orchestrator.",
     `Mission id: ${missionId}`,
@@ -21,6 +25,9 @@ function buildOrchestrationMessage(
     `Lead specialist: ${profile.name} (${profile.role})`,
     `Purpose: ${profile.purpose}`,
     `Allowed tools: ${profile.allowedTools.join(", ")}`,
+    "",
+    "Specialist skills (honor these boundaries):",
+    skills || "- (none)",
     "",
     "Sub-agents to coordinate (assign order, merge outputs, stop on failure):",
     subs || "- (none listed)",

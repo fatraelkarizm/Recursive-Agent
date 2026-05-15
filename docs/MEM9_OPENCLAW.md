@@ -148,7 +148,7 @@ For this project, reconnecting with a known key is simpler and safer than create
 
 For the current hackathon app, mem9 is not wired into the Next.js or Express code. The app has its own backend agent modules under `backend/src/agent`, while mem9 is an OpenClaw memory plugin configured through OpenClaw, not through this app's `package.json`.
 
-**Update:** the worker can now call the **OpenClaw CLI** for one-shot orchestration turns and **Playwright** for headless browser touches. See [OPENCLAW_INTEGRATION.md](./OPENCLAW_INTEGRATION.md) for env vars and setup. mem9 remains optional OpenClaw-side memory, not a Node import in this repo.
+**Update:** the worker can call the **OpenClaw CLI** for one-shot orchestration turns and **Tavily** (Extract / Search) for web reads without a local browser. See [OPENCLAW_INTEGRATION.md](./OPENCLAW_INTEGRATION.md) for env vars and setup. mem9 remains optional OpenClaw-side memory, not a Node import in this repo.
 
 Recommended next step:
 

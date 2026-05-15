@@ -1,0 +1,92 @@
+import type { SpecialistAgentProfile, SpecialistSkill } from "../types";
+
+export function buildSpecialistSkills(
+  role: string,
+  specializations: string[],
+  allowedTools: string[]
+): SpecialistSkill[] {
+  const skills: SpecialistSkill[] = [];
+
+  if (specializations.includes("browser-automation") || allowedTools.includes("tavily-extract")) {
+    skills.push({
+      id: "touch-web",
+      label: "Sentuh web",
+      description: "Membaca dan merangkum konten URL lewat Tavily Extract.",
+      kind: "touch"
+    });
+  }
+
+  if (allowedTools.includes("tavily-search")) {
+    skills.push({
+      id: "research-web",
+      label: "Riset web",
+      description: "Pencarian & kutipan sumber via Tavily Search.",
+      kind: "touch"
+    });
+  }
+
+  skills.push({
+    id: "generate-deliverable",
+    label: "Generate output",
+    description: "Menghasilkan jawaban terstruktur (markdown, rencana, atau ringkasan misi).",
+    kind: "generate"
+  });
+
+  if (specializations.includes("openclaw-orchestration") || allowedTools.includes("openclaw-orchestrator")) {
+    skills.push({
+      id: "orchestrate-fleet",
+      label: "Orkestrasi agent",
+      description: "Mengatur fleet sub-agent melalui OpenClaw CLI.",
+      kind: "orchestrate"
+    });
+  }
+
+  if (role.includes("coding")) {
+    skills.push({
+      id: "code-plan",
+      label: "Rencana kode",
+      description: "Menyusun langkah patch / refactor dari deskripsi bug atau fitur.",
+      kind: "generate"
+    });
+  }
+
+  return skills;
+}
+
+export function buildSpecialistReadme(profile: SpecialistAgentProfile, missionPrompt: string): string {
+  const skillsBlock = profile.skills
+    .map((s) => `- **${s.label}** (\`${s.id}\`, ${s.kind}): ${s.description}`)
+    .join("\n");
+
+  const tools = profile.allowedTools.length ? profile.allowedTools.map((t) => `\`${t}\``).join(", ") : "_none_";
+
+  return [
+    `# ${profile.name}`,
+    "",
+    `> Specialist dibuat oleh **mother agent** Recursive Agent.`,
+    "",
+    "## Peran",
+    `- **Role:** \`${profile.role}\``,
+    `- **Purpose:** ${profile.purpose}`,
+    "",
+    "## Misi awal (user prompt)",
+    "```text",
+    missionPrompt.trim() || "(empty)",
+    "```",
+    "",
+    "## Skills (jaminan perilaku)",
+    skillsBlock,
+    "",
+    "## Tools yang diizinkan",
+    tools,
+    "",
+    "## Instruksi sistem",
+    profile.systemInstructions || "_Default mother instructions._",
+    "",
+    "## Output",
+    `- Format: **${profile.outputFormat}**`,
+    "",
+    "---",
+    "_README ini di-generate otomatis; edit manual di UI jika perlu._"
+  ].join("\n");
+}

@@ -32,7 +32,9 @@ const initialProfile: SpecialistAgentProfile = {
   apiKeyRefs: [],
   notes: "",
   specializations: ["core-mission"],
-  orchestrationMode: "local"
+  orchestrationMode: "local",
+  skills: [],
+  readmeMd: ""
 };
 
 export default function Page() {
@@ -93,7 +95,7 @@ export default function Page() {
         <WorkspaceRail selectedId={selectedRecipeId} onSelectRecipe={handleSelectRecipe} />
 
         <section className="flex min-w-0 flex-1 flex-col gap-3 p-4">
-          <MissionCanvas status={status} />
+          <MissionCanvas status={status} profile={profile} />
           <div className="grid shrink-0 grid-cols-1 gap-3 lg:grid-cols-2">
             <VitalsPanel status={status} />
             <TerminalDrawer events={messages.filter((m) => m.role === "assistant").slice(-1)} />

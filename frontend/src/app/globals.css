@@ -8,3 +8,20 @@ body {
   background: radial-gradient(circle at top left, #112240, #0a192f 40%, #020c1b);
   color: #e6f1ff;
 }
+
+#mission-input {
+  background: rgba(2, 12, 27, 0.92);
+  color: #e6f1ff;
+  caret-color: #64ffda;
+  border-color: rgba(100, 255, 218, 0.28);
+}
+
+#mission-input::placeholder {
+  color: rgba(136, 146, 176, 0.78);
+}
+
+#mission-input:focus {
+  background: rgba(3, 15, 31, 0.98);
+  border-color: rgba(100, 255, 218, 0.72);
+  box-shadow: 0 0 0 3px rgba(100, 255, 218, 0.12);
+}

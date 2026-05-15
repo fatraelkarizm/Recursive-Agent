@@ -34,7 +34,47 @@ export const MotherAgentNode = memo(function MotherAgentNode({ data }: NodeProps
         <li className="rounded border border-dashed border-white/15 bg-black/20 px-2 py-1">Postgres memory (planned)</li>
         <li className="rounded border border-dashed border-white/15 bg-black/20 px-2 py-1">MCP tools</li>
       </ul>
-      <Handle type="source" position={Position.Right} className="!h-2 !w-2 !border-0 !bg-electric" />
+      <Handle
+        type="source"
+        position={Position.Right}
+        id="to-branch"
+        className="!h-2 !w-2 !border-0 !bg-electric"
+      />
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        id="to-specialist"
+        className="!h-2 !w-2 !border-0 !bg-violet-400"
+        style={{ left: "50%" }}
+      />
+    </div>
+  );
+});
+
+type SpecialistNodeData = {
+  name: string;
+  role: string;
+  skillsPreview: string;
+};
+
+export const SpecialistAgentNode = memo(function SpecialistAgentNode({ data }: NodeProps) {
+  const { name, role, skillsPreview } = data as SpecialistNodeData;
+  return (
+    <div className="min-w-[220px] max-w-[280px] rounded-xl border-2 border-violet-400/80 bg-[#14082a] px-3 py-3 shadow-lg">
+      <Handle
+        type="target"
+        position={Position.Top}
+        id="from-mother"
+        className="!h-2 !w-2 !border-0 !bg-violet-300"
+      />
+      <div className="flex items-center gap-2 border-b border-white/10 pb-2 text-xs font-semibold text-violet-200">
+        <Bot className="h-4 w-4 text-violet-300" aria-hidden />
+        <span className="truncate">{name}</span>
+      </div>
+      <p className="mt-1 text-[10px] uppercase tracking-wide text-slate">Specialist agent</p>
+      <p className="mt-0.5 font-mono text-[11px] text-white/90">{role}</p>
+      <p className="mt-2 line-clamp-3 text-[10px] leading-snug text-slate">{skillsPreview || "Skills: —"}</p>
+      <Handle type="source" position={Position.Right} id="specialist-out" className="!h-2 !w-2 !border-0 !bg-violet-400" />
     </div>
   );
 });

@@ -119,7 +119,7 @@ See [SETUP.md](./docs/SETUP.md) and [LIBRARY.md](./docs/LIBRARY.md) for the exac
 ## Documentation Index
 - [STEP.md](./docs/STEP.md) — **Start here:** what is implemented, checklists, and copy-paste run order
 - [SETUP.md](./docs/SETUP.md) — Bootstrap commands and environment setup
-- [OPENCLAW_INTEGRATION.md](./docs/OPENCLAW_INTEGRATION.md) — OpenClaw CLI orchestration + Playwright browser touch
+- [OPENCLAW_INTEGRATION.md](./docs/OPENCLAW_INTEGRATION.md) — OpenClaw CLI orchestration + Tavily web read/search
 - [LIBRARY.md](./docs/LIBRARY.md) — Dependency and MCP registry
 - [DESIGN.md](./docs/DESIGN.md) — UI system and interaction model (includes the three-column layout)
 - [INFRASTRUCTURE.md](./docs/INFRASTRUCTURE.md) — Runtime architecture and deployment model

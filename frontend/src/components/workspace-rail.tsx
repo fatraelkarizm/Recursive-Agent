@@ -39,14 +39,14 @@ const RECIPES: WorkspaceRecipe[] = [
     title: "Fleet + browser",
     subtitle: "OpenClaw orchestration + headless browser",
     prompt:
-      "Use OpenClaw to orchestrate multiple sub-agents. Open https://nextjs.org in a headless browser and summarize the hero headline."
+      "Use OpenClaw to orchestrate multiple sub-agents. Use Tavily to read https://nextjs.org and summarize the hero headline from extracted content."
   }
 ];
 
 const INTEGRATIONS = [
   { name: "Mother agent API", detail: "POST /api/missions", tone: "text-electric" },
   { name: "OpenClaw CLI", detail: "openclaw agent --json (see docs/OPENCLAW_INTEGRATION.md)", tone: "text-electric" },
-  { name: "Playwright", detail: "browser touch in backend/src/capabilities", tone: "text-slate" },
+  { name: "Tavily", detail: "Extract + Search (TAVILY_API_KEY)", tone: "text-electric" },
   { name: "MCP (hosted)", detail: "Wire in SETUP.md", tone: "text-slate" },
   { name: "E2B sandbox", detail: "backend/src/sandbox", tone: "text-slate" },
   { name: "Env keys", detail: ".env in frontend/backend", tone: "text-slate" }

@@ -4,6 +4,13 @@ export type SubAgentDescriptor = {
   focus: string;
 };
 
+export type SpecialistSkill = {
+  id: string;
+  label: string;
+  description: string;
+  kind: "touch" | "generate" | "orchestrate" | "other";
+};
+
 export type SpecialistAgentProfile = {
   name: string;
   role: string;
@@ -16,6 +23,8 @@ export type SpecialistAgentProfile = {
   specializations: string[];
   orchestrationMode: "local" | "openclaw";
   subAgents?: SubAgentDescriptor[];
+  skills: SpecialistSkill[];
+  readmeMd: string;
 };
 
 export type ChatMessage = {

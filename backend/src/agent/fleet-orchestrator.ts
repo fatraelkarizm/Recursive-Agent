@@ -455,8 +455,111 @@ async function reviewFleetOutput(params: {
 }
 
 /**
+ * Lightweight recursive decomposition: splits a failed sub-agent's task into 2-3 child sub-agents.
+ * Children inherit parent's skills and context — no extra web research or skill extraction.
+ */
+async function decomposeAndRunChildren(params: {
+  missionId: string;
+  motherPrompt: string;
+  profile: SpecialistAgentProfile;
+  parentSub: SubAgentDescriptor;
+  parentOutput: string;
+  priorOutputs: string;
+  openClawContext?: string;
+  onProgress?: (label: string, agentName?: string) => void;
+}): Promise<SubAgentRunResult[]> {
+  if (!isOpenAiCompatConfigured()) return [];
+
+  let decomposition: { children: { role: string; focus: string }[] } | null = null;
+  try {
+    const raw = await openAiCompatibleChatCompletion({
+      messages: [
+        {
+          role: "system",
+          content: [
+            "You decompose a complex agent task into 2-3 smaller, focused child tasks.",
+            "Return ONLY JSON: { \"children\": [{ \"role\": \"child-role\", \"focus\": \"specific narrow focus\" }] }",
+            "Each child should handle a distinct slice of the parent task. Max 3 children."
+          ].join(" ")
+        },
+        {
+          role: "user",
+          content: `Parent role: ${params.parentSub.role}\nParent focus: ${params.parentSub.focus}\nParent output (too shallow):\n${params.parentOutput.slice(0, 1000)}\n\nDecompose into focused children.`
+        }
+      ],
+      maxTokens: 600,
+      temperature: 0.3,
+      timeoutMs: 30_000
+    });
+
+    const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
+    const candidate = (fenced?.[1] ?? raw).trim();
+    const start = candidate.indexOf("{");
+    let depth = 0, end = -1;
+    for (let i = start; i < candidate.length; i++) {
+      if (candidate[i] === "{") depth++;
+      else if (candidate[i] === "}") { depth--; if (depth === 0) { end = i; break; } }
+    }
+    if (start >= 0 && end >= 0) {
+      decomposition = JSON.parse(candidate.slice(start, end + 1));
+    }
+  } catch {
+    return [];
+  }
+
+  if (!decomposition?.children?.length) return [];
+
+  const children = decomposition.children.slice(0, 3);
+  const childRuns: SubAgentRunResult[] = [];
+  let childPrior = params.priorOutputs;
+
+  for (const child of children) {
+    const childSub: SubAgentDescriptor = {
+      id: `${params.parentSub.id}-child-${child.role.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 20)}`,
+      role: child.role,
+      focus: child.focus
+    };
+
+    params.onProgress?.(`Child · ${child.role}`, params.profile.name);
+
+    let output: string | null = null;
+    let source: SubAgentRunResult["source"] = "skipped";
+
+    try {
+      output = await runSubViaOpenAiCompat({
+        motherPrompt: params.motherPrompt,
+        profile: params.profile,
+        sub: childSub,
+        priorOutputs: childPrior,
+        openClawContext: params.openClawContext
+      });
+      if (output) source = "openai-compat";
+    } catch { /* fallback */ }
+
+    if (!output) {
+      output = await runSubViaOpenClaw({
+        missionId: params.missionId,
+        motherPrompt: params.motherPrompt,
+        profile: params.profile,
+        sub: childSub,
+        priorOutputs: childPrior,
+        openClawContext: params.openClawContext
+      });
+      if (output) source = "openclaw";
+    }
+
+    if (output) {
+      childRuns.push({ id: childSub.id, role: `child:${child.role}`, focus: child.focus, output, source });
+      childPrior += `\n\n### child:${child.role}\n${output}`;
+    }
+  }
+
+  return childRuns;
+}
+
+/**
  * Runs the fleet with auto-review loop: execute → review → rework failing agents → repeat.
- * Stops when all pass or max iterations reached.
+ * Stops when all pass or max iterations reached. Supports recursive decomposition.
  */
 export async function runSubAgentFleetWithReview(params: {
   missionId: string;
@@ -559,6 +662,40 @@ export async function runSubAgentFleetWithReview(params: {
         updatedRuns.push(run);
         prior += `\n\n### ${run.role} (${run.id})\n${run.output}`;
         allEvents.push(`Fleet rework: ${run.id} rework failed — keeping previous output`);
+      } else if (output.length < 300 && iteration >= 2) {
+        allEvents.push(`Fleet decompose: ${run.id} output too shallow after rework — spawning child agents`);
+        params.onProgress?.(`Decompose · ${run.role} → child agents`, params.profile.name);
+
+        const childRuns = await decomposeAndRunChildren({
+          missionId: params.missionId,
+          motherPrompt: params.motherPrompt,
+          profile: params.profile,
+          parentSub: sub,
+          parentOutput: output,
+          priorOutputs: prior,
+          openClawContext: params.openClawContext,
+          onProgress: params.onProgress,
+        });
+
+        if (childRuns.length > 0) {
+          const merged = childRuns.map((cr) => cr.output).join("\n\n---\n\n");
+          const compositeRun: SubAgentRunResult = {
+            id: run.id,
+            role: `${run.role} (decomposed → ${childRuns.length} children)`,
+            focus: run.focus,
+            output: `## Decomposed output (${childRuns.length} child agents)\n\n${merged}`,
+            source: childRuns[0]?.source ?? "openai-compat"
+          };
+          updatedRuns.push(compositeRun);
+          for (const cr of childRuns) updatedRuns.push(cr);
+          prior += `\n\n### ${run.role} (decomposed)\n${merged}`;
+          allEvents.push(`Fleet decompose: ${run.id} produced ${childRuns.length} child agents`);
+        } else {
+          const updatedRun = { ...run, output, source };
+          updatedRuns.push(updatedRun);
+          prior += `\n\n### ${run.role} (${run.id})\n${output}`;
+          allEvents.push(`Fleet decompose: ${run.id} decomposition failed — keeping reworked output`);
+        }
       } else {
         const updatedRun = { ...run, output, source };
         updatedRuns.push(updatedRun);

@@ -26,6 +26,7 @@ import { buildOpenClawMissionContext } from "./mother-openclaw-context";
 import { ensureLeadFleetReady, isAutoOrchestrationEnabled } from "./specializations";
 import { updateCanvasAgentProfile } from "../db/agent-store";
 import { persistMissionResult } from "../db/mission-store";
+import { addMemory, searchMemories } from "../memory/mem0";
 import type { MissionProgressEmitter } from "./mission-progress";
 import { createProgressEmitter } from "./mission-progress";
 
@@ -40,6 +41,21 @@ export async function runMission(
   const emit = createProgressEmitter(onProgress);
   const missionId = randomId(10);
   const effectivePrompt = buildEffectiveMissionPrompt(payload);
+
+  emit({
+    phase: "tools",
+    label: "Central Agent recall memory (Mem0)",
+    detail: "Mencari memori relevan dari misi sebelumnya"
+  });
+  let mem0Context = "";
+  let mem0RecallCount = 0;
+  try {
+    const memories = await searchMemories(effectivePrompt, { agentId: "central-agent", topK: 5 });
+    if (memories.length > 0) {
+      mem0Context = memories.map((m) => m.memory).join("\n");
+      mem0RecallCount = memories.length;
+    }
+  } catch { /* mem0 optional */ }
 
   emit({
     phase: "tools",
@@ -66,6 +82,7 @@ export async function runMission(
     preferTavilySearch: true,
     contextNotes: [
       payload.contextNotes?.trim(),
+      mem0Context ? `Memori dari misi sebelumnya (Mem0):\n${mem0Context}` : "",
       "Riset web Tavily otomatis sebelum spawn",
       webResearch,
       "",
@@ -149,6 +166,7 @@ export async function runMission(
   const profile = fleetLead;
   const graph = buildMissionGraph(profile);
   const events: string[] = [];
+  if (mem0RecallCount > 0) events.push(`Mem0: recalled ${mem0RecallCount} relevant memories`);
   events.push(`Central Agent research:\n${webResearch.slice(0, 1200)}${webResearch.length > 1200 ? "…" : ""}`);
   if (htmlDeliverableNote) events.push(htmlDeliverableNote);
   if (parseError && source === "fallback-rules") {
@@ -332,6 +350,19 @@ export async function runMission(
   result.profile =
     finalSquad.find((s) => s.canvasLane === "frontend") ?? finalSquad[0];
   result.specialists = finalSquad.length > 1 ? finalSquad : undefined;
+
+  try {
+    const squadNames = finalSquad.map((s) => `${s.name} (${s.role})`).join(", ");
+    const skillCount = finalSquad.reduce((n, s) => n + s.skills.length, 0);
+    await addMemory(
+      `Misi: ${effectivePrompt.slice(0, 300)}. Squad: ${squadNames}. Total ${skillCount} skills. Status: ${result.status}.`,
+      {
+        agentId: "central-agent",
+        metadata: { missionId, agentCount: finalSquad.length, skillCount },
+      }
+    );
+    events.push("Mem0: mission result saved to memory");
+  } catch { /* mem0 optional */ }
 
   emit({ phase: "done", label: "Mission selesai", detail: missionId });
   return result;

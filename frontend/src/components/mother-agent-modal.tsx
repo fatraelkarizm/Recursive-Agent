@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { BookOpen, ChevronDown, ChevronRight, Globe, Layers, Loader2, Search, Wrench, X, Zap } from "lucide-react";
 import { MessageCircle } from "lucide-react";
 import { MotherAgentManagement } from "@/components/mother-agent-management";
-import { fetchRuntimeDiagnostics, fetchTelegramStatus, previewExtract, startTelegramBot, stopTelegramBot, type TelegramBotStatus } from "@/lib/api";
+import { fetchMem0Status, fetchRuntimeDiagnostics, fetchTelegramStatus, previewExtract, searchMem0, startTelegramBot, stopTelegramBot, type Mem0SearchResult, type Mem0Status, type TelegramBotStatus } from "@/lib/api";
 import type { CanvasViewMode } from "@/lib/canvas-agent-prefs";
 import type {
   FleetOrchestrationSummary,
@@ -121,6 +121,11 @@ export function MotherAgentModal({
   const [telegramLoading, setTelegramLoading] = useState(false);
   const [telegramErr, setTelegramErr] = useState<string | null>(null);
 
+  const [mem0Status, setMem0Status] = useState<Mem0Status | null>(null);
+  const [mem0Query, setMem0Query] = useState("");
+  const [mem0Results, setMem0Results] = useState<Mem0SearchResult[]>([]);
+  const [mem0Searching, setMem0Searching] = useState(false);
+
   useEffect(() => {
     if (!open) return;
     const id = requestAnimationFrame(() => setLocal(bundle));
@@ -166,6 +171,9 @@ export function MotherAgentModal({
     let cancelled = false;
     fetchTelegramStatus()
       .then((s) => { if (!cancelled) setTelegramStatus(s); })
+      .catch(() => {});
+    fetchMem0Status()
+      .then((s) => { if (!cancelled) setMem0Status(s); })
       .catch(() => {});
     return () => { cancelled = true; };
   }, [open, tab]);
@@ -507,6 +515,84 @@ export function MotherAgentModal({
                     <span className="h-2 w-2 rounded-full bg-green-400 animate-pulse" />
                     <span className="text-xs text-white font-semibold">@{telegramStatus.botUsername}</span>
                     <span className="text-xs text-slate">— Online, menerima misi dari Telegram</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="border-t border-white/10 pt-4">
+                <div className="flex items-start gap-2 rounded-xl border border-purple-500/20 bg-purple-500/5 p-3 text-sm text-slate">
+                  <Zap className="mt-0.5 h-5 w-5 shrink-0 text-purple-300" aria-hidden />
+                  <div>
+                    <p>
+                      <strong className="text-white">Mem0 Memory</strong> — persistent memory untuk Central Agent.
+                      Agent mengingat misi sebelumnya dan belajar dari hasilnya.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-3 flex items-center gap-3">
+                  {mem0Status ? (
+                    <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-black/30 px-3 py-2">
+                      <span className={`h-2 w-2 rounded-full ${mem0Status.connected ? "bg-green-400 animate-pulse" : mem0Status.configured ? "bg-amber-400" : "bg-red-400"}`} />
+                      <span className="text-xs text-white font-semibold">
+                        {mem0Status.connected ? "Connected" : mem0Status.configured ? "Configured (not connected)" : "Not configured"}
+                      </span>
+                      {mem0Status.connected && (
+                        <span className="text-[10px] text-slate">{mem0Status.memoryCount} memories</span>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="text-xs text-slate">Loading...</span>
+                  )}
+                </div>
+
+                {mem0Status?.connected && (
+                  <div className="mt-3 space-y-2">
+                    <div className="flex items-end gap-2">
+                      <div className="flex-1">
+                        <label className="text-xs font-semibold text-slate">Search memories</label>
+                        <input
+                          value={mem0Query}
+                          onChange={(e) => setMem0Query(e.target.value)}
+                          placeholder="Cari memori agent..."
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && mem0Query.trim()) {
+                              setMem0Searching(true);
+                              searchMem0(mem0Query.trim())
+                                .then(setMem0Results)
+                                .finally(() => setMem0Searching(false));
+                            }
+                          }}
+                          className="mt-1 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white focus:border-purple-500/50"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        disabled={mem0Searching || !mem0Query.trim()}
+                        onClick={() => {
+                          setMem0Searching(true);
+                          searchMem0(mem0Query.trim())
+                            .then(setMem0Results)
+                            .finally(() => setMem0Searching(false));
+                        }}
+                        className="shrink-0 rounded-xl bg-purple-500 px-4 py-2 text-sm font-semibold text-white hover:brightness-110 disabled:opacity-40"
+                      >
+                        {mem0Searching ? "..." : "Search"}
+                      </button>
+                    </div>
+
+                    {mem0Results.length > 0 && (
+                      <div className="space-y-1 rounded-lg border border-white/10 bg-black/30 p-2">
+                        {mem0Results.map((m) => (
+                          <div key={m.id} className="rounded-lg border border-white/5 bg-black/20 px-3 py-2">
+                            <p className="text-[11px] leading-relaxed text-slate-200">{m.memory}</p>
+                            {m.created_at && (
+                              <p className="mt-1 text-[9px] text-slate">{new Date(m.created_at).toLocaleString()}</p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

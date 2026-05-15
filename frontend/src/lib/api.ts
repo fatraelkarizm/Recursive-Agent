@@ -80,6 +80,35 @@ export async function fetchCanvasAgents(): Promise<StoredCanvasAgent[]> {
   );
 }
 
+export type Mem0Status = {
+  configured: boolean;
+  connected: boolean;
+  memoryCount: number;
+};
+
+export async function fetchMem0Status(): Promise<Mem0Status> {
+  const response = await fetch(`${BACKEND_URL}/api/mem0/status`, { method: "GET" });
+  if (!response.ok) throw new Error("Failed to fetch Mem0 status");
+  return response.json() as Promise<Mem0Status>;
+}
+
+export type Mem0SearchResult = {
+  id: string;
+  memory: string;
+  created_at?: string;
+};
+
+export async function searchMem0(query: string): Promise<Mem0SearchResult[]> {
+  const response = await fetch(`${BACKEND_URL}/api/mem0/search`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ query }),
+  });
+  if (!response.ok) return [];
+  const data = (await response.json()) as { results?: Mem0SearchResult[] };
+  return data.results ?? [];
+}
+
 export type TelegramBotStatus = {
   running: boolean;
   botUsername: string | null;

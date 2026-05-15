@@ -9,6 +9,7 @@ import { runMission } from "./agent/mother-agent";
 import { tavilyExtractOne } from "./capabilities/tavily-extract-one";
 import { getPublicRuntimeDiagnostics } from "./public-runtime-diagnostics";
 import { getTelegramBotStatus, startTelegramBot, stopTelegramBot } from "./telegram/bot";
+import { getMem0Status, searchMemories } from "./memory/mem0";
 import {
   deleteAllCanvasAgents,
   deleteCanvasAgent,
@@ -205,6 +206,18 @@ app.post("/api/missions/stream", async (req, res) => {
   } finally {
     if (!res.writableEnded) res.end();
   }
+});
+
+app.get("/api/mem0/status", async (_req, res) => {
+  const status = await getMem0Status();
+  res.json(status);
+});
+
+app.post("/api/mem0/search", async (req, res) => {
+  const query = String(req.body?.query ?? "").trim();
+  if (!query) return res.status(400).json({ error: "Missing query" });
+  const results = await searchMemories(query, { agentId: "central-agent", topK: 10 });
+  return res.json({ results });
 });
 
 app.get("/api/telegram/status", (_req, res) => {

@@ -122,3 +122,19 @@ This registry is also the place to remember the required secrets and runtime end
 
 ## Change Policy
 When a new dependency is added, update this file together with the implementation notes so the team can see why the package exists, what runtime it needs, and whether it is required for the MVP.
+
+## Current Persistence Implementation
+The backend currently uses Prisma with PostgreSQL.
+
+Files:
+- `backend/prisma/schema.prisma` defines `Mission`, `SpecialistProfile`, and `MissionEvent`.
+- `backend/prisma/migrations/20260515000000_init_mission_persistence/migration.sql` creates the database tables.
+- `backend/src/db/mission-store.ts` writes mission results after the worker completes.
+
+Commands:
+
+```bash
+npm --workspace backend run db:generate
+npm --workspace backend run db:migrate
+npm --workspace backend run db:deploy
+```

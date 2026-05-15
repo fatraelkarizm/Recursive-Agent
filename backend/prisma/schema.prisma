@@ -1,0 +1,46 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Mission {
+  id          String              @id
+  prompt      String
+  status      String
+  createdAt   DateTime            @default(now())
+  completedAt DateTime?
+  profile     SpecialistProfile?
+  events      MissionEvent[]
+
+  @@map("missions")
+}
+
+model SpecialistProfile {
+  id          String   @id @default(cuid())
+  missionId   String   @unique
+  name        String
+  role        String
+  purpose     String
+  profileJson Json
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  mission     Mission  @relation(fields: [missionId], references: [id], onDelete: Cascade)
+
+  @@map("specialist_profiles")
+}
+
+model MissionEvent {
+  id        String   @id @default(cuid())
+  missionId String
+  sequence  Int
+  message   String
+  createdAt DateTime @default(now())
+  mission   Mission  @relation(fields: [missionId], references: [id], onDelete: Cascade)
+
+  @@index([missionId, sequence])
+  @@map("mission_events")
+}

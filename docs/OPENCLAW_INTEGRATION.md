@@ -30,6 +30,8 @@ The worker then runs (in order):
 | `OPENCLAW_ORCHESTRATOR_AGENT` | `--agent` id (default `main`). |
 | `OPENCLAW_SESSION_PREFIX` | Optional prefix for `--session-id` (`recursive-agent-<missionId>` if unset). |
 | `OPENCLAW_USE_LOCAL` | Set to `0` to omit `--local` (gateway mode). Default: local embedded run. |
+| `OPENCLAW_MODEL` | Paksa model per panggilan CLI, mis. `deepseek/deepseek-v4-pro` (supaya run dari API tidak pakai default `zai/glm` di config global). |
+| `DEEPSEEK_API_KEY` | Key DeepSeek; taruh di **`backend/.env`** — ikut ke proses `openclaw` lewat `process.env` (lihat bagian di bawah). |
 | `OPENCLAW_TIMEOUT_MS` | CLI timeout (default `120000`). |
 | `BROWSER_AUTOMATION` | Set to `0` to skip the Tavily “web read” step (misnamed for backward compat). |
 | `BROWSER_DEFAULT_URL` | Fallback URL when the prompt has no `http(s)` link. |
@@ -50,7 +52,75 @@ npm install
 openclaw agent --local --agent main --session-id recursive-agent-smoke --message "ping" --json
 ```
 
+### Pakai **DeepSeek V4 Pro** (ganti dari `zai/glm`)
+
+OpenClaw memakai ref model bentuk **`provider/model-id`**. Untuk plugin resmi DeepSeek, env auth-nya **`DEEPSEEK_API_KEY`** (lihat [Model providers](https://github.com/openclaw/openclaw/blob/main/docs/concepts/model-providers.md)).
+
+**A. Cepat — hanya satu perintah CLI (tanpa ubah `openclaw.json` dulu)**
+
+Pastikan `DEEPSEEK_API_KEY` sudah di-set di environment Windows (User env) atau di shell sebelum jalan:
+
+```powershell
+$env:DEEPSEEK_API_KEY = "sk-..."   # contoh; lebih aman: set permanen di System Properties → Environment Variables
+openclaw agent --local --agent main --model deepseek/deepseek-v4-pro --session-id recursive-agent-smoke --message "ping" --json
+```
+
+Kalau ref model tidak dikenali, cek id yang didukung instalasi kamu, mis. `deepseek/deepseek-v4-flash`, lalu ganti `--model`.
+
+**B. Default global (semua run `main` pakai DeepSeek)**
+
+1. Login / onboard DeepSeek ke OpenClaw (contoh: `openclaw onboard` dan pilih alur DeepSeek, atau ikuti [DeepSeek di OpenClaw](https://docs.openclaw.ai/) / `openclaw models auth` untuk provider `deepseek`).  
+2. Edit config global biasanya di **`%USERPROFILE%\.openclaw\openclaw.json`** (atau `openclaw config edit` kalau tersedia) dan set default model, pola konsepnya:
+
+```json5
+{
+  "agents": {
+    "defaults": {
+      "model": { "primary": "deepseek/deepseek-v4-pro" }
+    }
+  }
+}
+```
+
+Pastikan provider **deepseek** sudah ter-auth; tanpa itu `primary` akan gagal.
+
+**C. Dari app Recursive Agent (`backend/.env`)**
+
+Tambahkan:
+
+```env
+DEEPSEEK_API_KEY=sk-...
+OPENCLAW_MODEL=deepseek/deepseek-v4-pro
+```
+
+**Ini bisa**, karena:
+
+1. `backend/src/server.ts` memuat `import "dotenv/config"` → variabel di **`backend/.env`** masuk ke `process.env`.
+2. `openclaw-bridge` memanggil `openclaw` dengan `env: { ...process.env }` → child process **melihat `DEEPSEEK_API_KEY`** yang sama.
+3. `OPENCLAW_MODEL` ditambahkan sebagai argumen **`--model`**, jadi run dari API memaksa **DeepSeek**, bukan default global yang masih mengarah ke **zai** (selama OpenClaw versi kamu menghormati `--model` untuk embedded run).
+
+Kalau masih ke **zai**, biasanya salah satu: (a) `--model` tidak dipakai untuk jalur itu — naikkan versi OpenClaw atau cek log; (b) key DeepSeek tidak terbaca — pastikan kamu **start worker dari folder `backend`** atau `dotenv` memang memuat file yang berisi `DEEPSEEK_API_KEY`; (c) auth global memaksa provider lain — sesuaikan `~/.openclaw/openclaw.json` atau nonaktifkan profil zai sementara untuk tes.
+
 If this fails, the API still returns `200`; the mission `events[]` will contain the hint from the bridge.
+
+## Troubleshooting OpenClaw CLI
+
+### `429` / “Insufficient balance” / “rate limit” with `provider=zai` and `glm-5.1`
+
+OpenClaw is working; the **model provider** refused the request. Your log shows the embedded agent used **Zhipu / Z.AI** (`zai`) with **`glm-5.1`**, and the upstream error was effectively **no quota / recharge required** (`Insufficient balance or no resource package`).
+
+**What to do (pick one):**
+
+1. **Top up or enable billing** on the Z.AI / GLM account tied to that OpenClaw auth profile (same place you configured Codex-style sync if applicable).  
+2. **Switch the agent’s default model** in OpenClaw so `main` does not depend on `zai/glm-5.1` — e.g. bind **OpenAI** or **Anthropic** (where you already have credits) for embedded runs. That is configured in your **global OpenClaw config** and/or agent workspace under `%USERPROFILE%\.openclaw\` (see [OpenClaw docs](https://docs.openclaw.ai/)).  
+3. **Try gateway mode** instead of `--local` if your gateway uses different credentials: set `OPENCLAW_USE_LOCAL=0` in `backend/.env` and ensure the gateway is running and healthy.  
+4. **Hackathon / demo fallback:** set `OPENCLAW_ORCHESTRATION=0` in `backend/.env` so Recursive Agent still runs Tavily + tools without calling the CLI until billing is fixed.
+
+After you change provider or top up, rerun the same smoke command; you want `meta.stopReason` (or equivalent) **not** `error` and payloads without the warning emoji.
+
+### Session / agent id mismatch
+
+`--agent main` must match an agent id that exists in your OpenClaw install. If yours differs, set `OPENCLAW_ORCHESTRATOR_AGENT` in `backend/.env` to that id.
 
 ## Security
 

@@ -63,6 +63,7 @@ frontend/src/app          # Next.js routes and shell
 frontend/src/components   # Mission UI modules (canvas, chat, rail, vitals, terminal)
 frontend/src/lib          # API client, types, helpers
 backend/src               # Express server, mother agent, tools, sandbox stubs
+backend/prisma            # PostgreSQL schema and migration for missions/profiles/events
 docs/                     # Product + build documentation (STEP.md is the runbook)
 ```
 
@@ -82,19 +83,23 @@ The user should be able to see and edit that profile before the agent is finaliz
 ## Installation And Run (this repo)
 1. Install dependencies:
    ```bash
-   cd frontend && npm install
-   cd ../backend && npm install
+   npm install
    ```
 2. Copy environment templates if you use keys (never commit secrets). See [SETUP.md](./docs/SETUP.md).
-3. Start the worker, then the UI:
+3. Start PostgreSQL and apply the Prisma migration if you want persistence:
+   ```bash
+   docker run --name recursive-agent-postgres -e POSTGRES_USER=recursive -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=recursive_agent -p 5432:5432 -d postgres:16
+   npm --workspace backend run db:migrate
+   ```
+4. Start the worker, then the UI:
    ```bash
    # terminal A
-   cd backend && npm run dev
+   npm run dev:backend
 
    # terminal B
-   cd frontend && npm run dev
+   npm run dev:frontend
    ```
-4. Open `http://localhost:3000`. The UI calls `http://localhost:4000` by default. Override with `NEXT_PUBLIC_BACKEND_URL` in `frontend/.env.local` if needed.
+5. Open `http://localhost:3000`. The UI calls `http://localhost:4000` by default. Override with `NEXT_PUBLIC_BACKEND_URL` in `frontend/.env.local` if needed.
 
 For greenfield bootstrap, use `npx create-next-app@latest` (wizard) or the non-interactive one-liner in [SETUP.md](./docs/SETUP.md). This repo already ships a `frontend/` app; optional packages and MCP hosts are covered there too.
 
@@ -107,6 +112,14 @@ The implementation will need values for:
 - Optional observability services
 
 See [SETUP.md](./docs/SETUP.md) and [LIBRARY.md](./docs/LIBRARY.md) for the exact list.
+
+## Persistence
+The backend stores completed missions, generated specialist profiles, and ordered mission events in PostgreSQL:
+- `missions`
+- `specialist_profiles`
+- `mission_events`
+
+Set `DATABASE_URL` in `backend/.env` and run `npm --workspace backend run db:migrate`. If `DATABASE_URL` is absent, the mission still completes and the returned events explain that persistence was skipped.
 
 ## Key Product Principles
 - Visible agent behavior is better than a black box.

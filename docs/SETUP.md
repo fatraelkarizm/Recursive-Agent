@@ -6,8 +6,7 @@ This file is the bootstrap checklist for turning the docs in this repository int
 The hackathon monorepo already contains `frontend/` and `backend/`. You can skip **§1 Create The App Shell** unless you are rebuilding from scratch.
 
 ```bash
-cd frontend && npm install
-cd ../backend && npm install
+npm install
 ```
 
 Point the UI at the worker (defaults to `http://localhost:4000`):
@@ -20,8 +19,8 @@ NEXT_PUBLIC_BACKEND_URL="http://localhost:4000"
 Run both processes (two terminals):
 
 ```bash
-cd backend && npm run dev
-cd frontend && npm run dev
+npm run dev:backend
+npm run dev:frontend
 ```
 
 For a step-by-step audit of what is implemented vs pending, read [STEP.md](./STEP.md).
@@ -71,14 +70,21 @@ npm install lucide-react clsx tailwind-merge framer-motion zod @xyflow/react son
 npm install pino nanoid
 ```
 
-Optional backend packages if you want persistence and queueing in the MVP:
+Backend persistence packages are included in this repository:
 
 ```bash
-npm install prisma @prisma/client ioredis
+npm install --workspace backend @prisma/client
+npm install --workspace backend -D prisma
+```
+
+Redis is still optional for queues/rate limits:
+
+```bash
+npm install --workspace backend ioredis
 ```
 
 ## 3. Add Environment Variables
-Create `.env.local` in the project root and keep it out of Git.
+Create local env files and keep them out of Git. Frontend public config belongs in `frontend/.env.local`; backend secrets and database URLs belong in `backend/.env`.
 
 ```env
 # AI providers
@@ -92,8 +98,8 @@ E2B_API_KEY="e2b_..."
 ZAPIER_MCP_URL="https://..."
 TAVILY_API_KEY="tvly-..."
 
-# Persistence
-DATABASE_URL="postgresql://..."
+# Persistence (backend)
+DATABASE_URL="postgresql://recursive:postgres@localhost:5432/recursive_agent?schema=public"
 REDIS_URL="redis://..."
 
 # Optional observability
@@ -102,7 +108,36 @@ SENTRY_DSN="https://..."
 
 If you are using a provider-specific SDK instead of a remote MCP endpoint, replace the URL fields with the corresponding auth tokens.
 
-## 4. Configure The Local Development Workflow
+## 4. Configure PostgreSQL Persistence
+The backend stores completed missions, generated specialist profiles, and ordered event logs in PostgreSQL through Prisma.
+
+Start a local Postgres container:
+
+```bash
+docker run --name recursive-agent-postgres \
+  -e POSTGRES_USER=recursive \
+  -e POSTGRES_PASSWORD=postgres \
+  -e POSTGRES_DB=recursive_agent \
+  -p 5432:5432 \
+  -d postgres:16
+```
+
+Set `backend/.env`:
+
+```env
+DATABASE_URL="postgresql://recursive:postgres@localhost:5432/recursive_agent?schema=public"
+```
+
+Generate the Prisma client and apply the schema:
+
+```bash
+npm --workspace backend run db:generate
+npm --workspace backend run db:migrate
+```
+
+If `DATABASE_URL` is not configured, the backend still runs and returns mission responses, but the response events will include `Persistence skipped: DATABASE_URL is not configured`.
+
+## 5. Configure The Local Development Workflow
 Recommended directories to create early:
 
 ```text
@@ -123,12 +158,12 @@ Recommended npm scripts:
 		"dev": "next dev",
 		"build": "next build",
 		"start": "next start",
-		"lint": "next lint"
+		"lint": "eslint ."
 	}
 }
 ```
 
-## 5. MCP Server Setup
+## 6. MCP Server Setup
 Use hosted HTTP/SSE MCP services when possible. If you need local development servers, run the specific MCP server you are testing and wire it through your client layer.
 
 Example placeholders:
@@ -140,7 +175,7 @@ npx -y @tavily/mcp-server
 
 Do not assume a stdio-only MCP process will work in a serverless production deployment.
 
-## 6. Development Smoke Test
+## 7. Development Smoke Test
 After wiring the first MVP slice, verify the flow in this order:
 1. Open the dashboard.
 2. Trigger one mission.
@@ -148,13 +183,14 @@ After wiring the first MVP slice, verify the flow in this order:
 4. Confirm the agent state updates.
 5. Confirm the UI renders the result without a full reload.
 
-## 7. Run The App
+## 8. Run The App
 
 ```bash
-npm run dev
+npm run dev:backend
+npm run dev:frontend
 ```
 
-## 8. Recommended MVP Scope
+## 9. Recommended MVP Scope
 Build the smallest demo that can be shown in under two minutes:
 - one mother agent
 - one visible mission state machine
@@ -162,7 +198,7 @@ Build the smallest demo that can be shown in under two minutes:
 - one log panel
 - one success and one error path
 
-## 9. Before You Deploy
+## 10. Before You Deploy
 - Replace placeholder credentials with real secrets in your deployment platform.
 - Verify whether every runtime dependency works on Edge or must stay on Node.
 - Move any long-running agent logic to a worker process if needed.

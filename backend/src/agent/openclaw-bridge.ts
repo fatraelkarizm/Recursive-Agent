@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import type { SpecialistAgentProfile } from "../types";
+import { logger } from "../logging";
 
 const execFileAsync = promisify(execFile);
 
@@ -70,6 +71,16 @@ export async function orchestrateViaOpenClaw(params: {
     message,
     "--json"
   ];
+  const model = process.env.OPENCLAW_MODEL?.trim();
+  if (model) {
+    args.push("--model", model);
+  }
+  if (model?.startsWith("deepseek/") && !process.env.DEEPSEEK_API_KEY?.trim()) {
+    logger.warn(
+      { OPENCLAW_MODEL: model },
+      "DEEPSEEK_API_KEY missing in backend env — OpenClaw may fall back to another provider (e.g. zai). Set it in backend/.env."
+    );
+  }
   if (useLocal) {
     args.push("--local");
   }

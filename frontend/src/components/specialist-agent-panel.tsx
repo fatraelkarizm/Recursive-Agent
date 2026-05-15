@@ -1,3 +1,5 @@
+"use client";
+
 import type { SpecialistAgentProfile, SpecialistSkill } from "@/lib/types";
 
 type SpecialistAgentPanelProps = {

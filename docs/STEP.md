@@ -42,7 +42,7 @@ Build the folder structure first, then wire one feature at a time:
 - [x] Frontend connected to worker (`POST /api/missions` via `frontend/src/lib/api.ts`)
 - [ ] One real tool integration (replace stub router with live MCP/Tavily/etc.)
 - [ ] Sandbox execution path hardened (E2B beyond echo)
-- [ ] Persistence added
+- [x] Persistence added (PostgreSQL + Prisma for missions, profiles, and events)
 - [ ] Observability added (streaming logs, Sentry, toasts)
 - [ ] Safety limits added
 - [ ] End-to-end smoke test passed on clean machine
@@ -65,7 +65,7 @@ Install these first on the machine:
 - A code editor
 - Accounts or API keys for the services you actually plan to use
 
-If you want a database and Redis in the MVP, prepare those before coding.
+PostgreSQL is now part of the MVP. Redis is still optional for queues/rate limits.
 
 ## 1. Create The Workspace
 If this repo is still docs-only, create the actual app folders from the root.
@@ -124,10 +124,17 @@ npm install ai @ai-sdk/openai @ai-sdk/anthropic @modelcontextprotocol/sdk
 npm install framer-motion lucide-react clsx tailwind-merge zod @xyflow/react sonner nanoid pino
 ```
 
-If you know you will use persistence from the frontend directly, add:
+Persistence lives in the backend workspace. It already uses:
 
 ```bash
-npm install prisma @prisma/client ioredis
+npm install --workspace backend @prisma/client
+npm install --workspace backend -D prisma
+```
+
+Redis remains optional:
+
+```bash
+npm install --workspace backend ioredis
 ```
 
 > **Status:** `frontend/package.json` already includes the UI + `@xyflow/react` stack. Run `npm install` after pulling changes.
@@ -340,14 +347,35 @@ The sandbox should:
 If the sandbox is unstable, the demo should still work without it.
 
 ## 11. Add Persistence
-Persist these records:
-- missions
-- mission steps
-- tool calls
-- log events
-- statuses
+> **Status:** implemented with PostgreSQL + Prisma in `backend/prisma/schema.prisma` and `backend/src/db/mission-store.ts`.
 
-Use Prisma, Drizzle, or plain SQL. The important part is that the app can reload state and show history.
+Persisted records:
+- `missions` stores mission id, prompt, status, create time, and completion time.
+- `specialist_profiles` stores the generated specialist summary plus the full profile JSON.
+- `mission_events` stores ordered event messages for audit/readback.
+
+Local setup:
+
+```bash
+docker run --name recursive-agent-postgres \
+  -e POSTGRES_USER=recursive \
+  -e POSTGRES_PASSWORD=postgres \
+  -e POSTGRES_DB=recursive_agent \
+  -p 5432:5432 \
+  -d postgres:16
+
+copy backend\.env.example backend\.env
+npm --workspace backend run db:generate
+npm --workspace backend run db:migrate
+```
+
+Set `backend/.env`:
+
+```env
+DATABASE_URL="postgresql://recursive:postgres@localhost:5432/recursive_agent?schema=public"
+```
+
+The backend degrades gracefully when `DATABASE_URL` is absent: missions still complete, but persistence is skipped and the returned events explain why.
 
 ## 12. Add Observability
 You need visibility for demoing and debugging.

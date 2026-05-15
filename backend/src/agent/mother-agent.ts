@@ -10,6 +10,7 @@ import { buildSpecialistReadme, buildSpecialistSkills } from "./specialist-artif
 import { runToolRoute } from "./tool-router";
 import { runSandboxTask } from "../sandbox/e2b";
 import { browserTouchFromPrompt } from "../capabilities/browser";
+import { persistMissionResult } from "../db/mission-store";
 
 function randomId(length = 8): string {
   return Math.random().toString(36).slice(2, 2 + length);
@@ -94,10 +95,28 @@ export async function runMission(payload: MissionPayload): Promise<MissionResult
   const sandboxEvent = await runSandboxTask("echo specialist-agent-ready");
   events.push(`Sandbox: ${sandboxEvent}`);
 
-  return {
+  const result: MissionResult = {
     missionId,
     status: "completed",
     profile,
     events
   };
+
+  try {
+    const persistence = await persistMissionResult({
+      prompt: payload.prompt,
+      result
+    });
+
+    result.events.push(
+      persistence.persisted
+        ? "Persistence: mission saved to PostgreSQL"
+        : `Persistence skipped: ${persistence.reason}`
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "unknown database error";
+    result.events.push(`Persistence failed: ${message}`);
+  }
+
+  return result;
 }

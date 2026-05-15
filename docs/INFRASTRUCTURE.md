@@ -65,10 +65,18 @@ The system should explicitly define the following records:
 
 Store the core state in a database so workflows can resume after interruptions.
 
+Current implementation:
+- `backend/prisma/schema.prisma` defines PostgreSQL tables for `missions`, `specialist_profiles`, and `mission_events`.
+- `backend/src/db/mission-store.ts` persists completed mission responses and keeps event order with a numeric `sequence`.
+- `backend/src/db/prisma.ts` lazily creates `PrismaClient` only when `DATABASE_URL` is configured.
+- If the database is unavailable or not configured, the worker keeps returning mission responses and appends a persistence event so the UI can surface the state.
+
 ## Recommended Storage Stack
 - PostgreSQL for durable mission state and audit logs
 - Redis for queue state, locks, retries, and rate limits
 - Object storage or Drive-like storage for artifacts and generated files
+
+PostgreSQL is active in the backend MVP. Redis and object storage remain planned integrations.
 
 ## Context And Memory
 Use memory only where it improves mission continuity.
@@ -142,6 +150,12 @@ Typical runtime variables:
 - SENTRY_DSN
 - ZAPIER_MCP_URL
 - TAVILY_API_KEY
+
+Backend local database default:
+
+```env
+DATABASE_URL="postgresql://recursive:postgres@localhost:5432/recursive_agent?schema=public"
+```
 
 ## Failure Modes To Plan For
 - MCP service unavailable

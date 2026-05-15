@@ -79,6 +79,9 @@ function buildSubUserPayload(params: {
     `Role ${params.profile.role}`,
     `Purpose ${params.profile.purpose}`,
     `System instructions: ${params.profile.systemInstructions.slice(0, 800)}`,
+    params.profile.readmeMd?.trim()
+      ? ["", "Lead README.md (agent identity & capabilities)", params.profile.readmeMd.trim().slice(0, 2000), ""].join("\n")
+      : "",
     params.profile.skillMd?.trim()
       ? ["", "Lead SKILL.md", params.profile.skillMd.trim().slice(0, 3000), ""].join("\n")
       : "",

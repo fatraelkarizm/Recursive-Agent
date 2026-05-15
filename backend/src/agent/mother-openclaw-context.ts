@@ -36,6 +36,8 @@ export function buildOpenClawMissionContext(params: {
     })
     .join("\n\n");
 
+  const leadReadme = params.fleetLead.readmeMd?.trim();
+
   const subBlocks = (params.fleetLead.subAgents ?? [])
     .map((sub) => {
       const skill = sub.skillMd?.trim() || sub.focus;
@@ -46,6 +48,8 @@ export function buildOpenClawMissionContext(params: {
   const parts = [
     "External URLs prioritas",
     urlBlock,
+    "",
+    leadReadme ? `Lead agent README.md\n${leadReadme.slice(0, 2000)}` : "",
     "",
     "SKILL per specialist",
     specialistSkills,

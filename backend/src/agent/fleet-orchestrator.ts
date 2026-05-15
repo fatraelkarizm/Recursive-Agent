@@ -51,13 +51,25 @@ function fleetMergeMaxTokens(): number {
   return Number.isFinite(n) && n > 400 ? n : 2200;
 }
 
+function buildSkillInstructionsBlock(profile: SpecialistAgentProfile): string {
+  const withInstructions = profile.skills.filter((sk) => sk.instructions?.trim());
+  if (withInstructions.length === 0) return "";
+  const blocks = withInstructions.slice(0, 8).map((sk) =>
+    `### ${sk.label} (${sk.kind})\n${sk.instructions!.trim().slice(0, 1200)}`
+  );
+  return ["", "DETAILED SKILL INSTRUCTIONS — use this knowledge in your output:", "", ...blocks, ""].join("\n");
+}
+
 function buildSubUserPayload(params: {
   motherPrompt: string;
   profile: SpecialistAgentProfile;
   sub: SubAgentDescriptor;
   priorOutputs: string;
   openClawContext?: string;
+  reviewFeedback?: string;
 }): string {
+  const skillInstructions = buildSkillInstructionsBlock(params.profile);
+
   return [
     "OpenClaw mission pack (SKILL, URLs, Tavily research)",
     params.openClawContext?.trim() || params.motherPrompt.trim(),
@@ -66,11 +78,13 @@ function buildSubUserPayload(params: {
     `Name ${params.profile.name}`,
     `Role ${params.profile.role}`,
     `Purpose ${params.profile.purpose}`,
+    `System instructions: ${params.profile.systemInstructions.slice(0, 800)}`,
     params.profile.skillMd?.trim()
-      ? ["", "Lead SKILL", params.profile.skillMd.trim().slice(0, 3500), ""].join("\n")
+      ? ["", "Lead SKILL.md", params.profile.skillMd.trim().slice(0, 3000), ""].join("\n")
       : "",
+    skillInstructions,
     params.sub.skillMd?.trim()
-      ? ["", "Sub-agent SKILL (role-specific)", params.sub.skillMd.trim().slice(0, 3500), ""].join("\n")
+      ? ["", "Sub-agent SKILL (role-specific)", params.sub.skillMd.trim().slice(0, 3000), ""].join("\n")
       : "",
     "Your sub-agent assignment",
     `id ${params.sub.id}`,
@@ -80,7 +94,15 @@ function buildSubUserPayload(params: {
     "Outputs from earlier sub-agents (read-only)",
     params.priorOutputs.trim() || "None yet, you are first in the chain.",
     "",
-    "Produce only your slice. Prioritize the agent package: skills, workflow, tool constraints, risks, and reusable playbook details. For UI/HTML missions, sample HTML is optional proof of work, not the core artifact.",
+    params.reviewFeedback
+      ? [
+          "REWORK INSTRUCTIONS FROM REVIEWER — you MUST address these issues:",
+          params.reviewFeedback,
+          "",
+          "Improve your output to meet industry/world-class standards based on this feedback."
+        ].join("\n")
+      : "",
+    "Produce only your slice. Apply ALL injected skills and instructions to produce expert-level, industry-standard output.",
     "Do not claim you ran tools unless context says so."
   ].join("\n");
 }
@@ -91,17 +113,21 @@ async function runSubViaOpenAiCompat(params: {
   sub: SubAgentDescriptor;
   priorOutputs: string;
   openClawContext?: string;
+  reviewFeedback?: string;
 }): Promise<string | null> {
   if (!isOpenAiCompatConfigured()) return null;
   const system = [
     "You are a specialized sub-agent in a multi-agent fleet coordinated by a Central Agent.",
     "You have been produced with real-time skills extracted from the web — SKILL.md files, documentation, best practices, and domain knowledge.",
-    "Use ALL the knowledge in your SKILL injection to produce high-quality, expert-level output.",
+    "You MUST apply ALL injected SKILL instructions and domain knowledge to produce world-class, industry-standard output.",
+    "Your output should demonstrate deep expertise — actionable, comprehensive, structured, and immediately usable.",
+    "Do NOT produce generic or surface-level content. Every section must show expert-level depth.",
     "Stay inside your sub-agent role and focus. Be factual; do not claim you executed shell commands or external tools unless context says so.",
+    params.reviewFeedback ? "IMPORTANT: You are in REWORK mode. Previous output was rejected by the reviewer. You MUST address all feedback points." : "",
     "Reply in Markdown. Indonesian if the user mission is Indonesian."
-  ].join(" ");
+  ].filter(Boolean).join(" ");
 
-  const user = buildSubUserPayload(params);
+  const user = buildSubUserPayload({ ...params, reviewFeedback: params.reviewFeedback });
 
   try {
     const fleetTimeout = Number(process.env.FLEET_LLM_TIMEOUT_MS ?? process.env.MOTHER_LLM_TIMEOUT_MS ?? "120000");
@@ -111,13 +137,12 @@ async function runSubViaOpenAiCompat(params: {
         { role: "user", content: user }
       ],
       maxTokens: fleetMaxTokensPerSub(),
-      temperature: 0.45,
+      temperature: params.reviewFeedback ? 0.3 : 0.45,
       timeoutMs: Number.isFinite(fleetTimeout) && fleetTimeout > 10_000 ? fleetTimeout : 120_000
     });
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
     logger.warn({ err, subId: params.sub.id }, "OpenAI-compat fleet sub-agent call failed");
-    // Return null so the fleet can fall back to OpenClaw; caller attaches detail to events/appendix.
     throw new Error(detail);
   }
 }
@@ -129,6 +154,7 @@ async function runSubViaOpenClaw(params: {
   sub: SubAgentDescriptor;
   priorOutputs: string;
   openClawContext?: string;
+  reviewFeedback?: string;
 }): Promise<string | null> {
   if (process.env.OPENCLAW_ORCHESTRATION === "0") return null;
 
@@ -137,17 +163,24 @@ async function runSubViaOpenClaw(params: {
       ? `${process.env.OPENCLAW_SESSION_PREFIX}-${params.missionId}-${params.sub.id}`
       : `recursive-agent-${params.missionId}-${params.sub.id}`;
 
+  const skillBlock = buildSkillInstructionsBlock(params.profile);
+
   const message = [
     `You are sub-agent ${params.sub.id} with role ${params.sub.role}.`,
     `Focus: ${params.sub.focus}`,
+    `System: ${params.profile.systemInstructions.slice(0, 600)}`,
     "",
     params.openClawContext?.trim() ||
       ["## User mission", params.motherPrompt.trim(), "", `Lead: ${params.profile.purpose}`].join("\n"),
+    skillBlock,
     "",
     "## Prior sub-agent outputs",
     params.priorOutputs.trim() || "(none)",
     "",
-    "Respond with Markdown only. Honor SKILL.md and external URLs in the mission pack."
+    params.reviewFeedback
+      ? ["## REWORK — address these issues:", params.reviewFeedback, ""].join("\n")
+      : "",
+    "Apply ALL injected skills to produce industry-standard output. Respond with Markdown only."
   ].join("\n");
 
   try {
@@ -343,4 +376,229 @@ export async function runSubAgentFleet(params: {
   events.push(`Fleet: merge complete (${mergedReport.length} chars).`);
 
   return { events, summary: { mergedReport, subAgentRuns: runs } };
+}
+
+/**
+ * Reviews fleet output via LLM and returns rework instructions per sub-agent.
+ * Returns null if all sub-agents pass or gateway unavailable.
+ */
+async function reviewFleetOutput(params: {
+  motherPrompt: string;
+  profile: SpecialistAgentProfile;
+  runs: SubAgentRunResult[];
+  iteration: number;
+}): Promise<{ pass: boolean; feedback: Record<string, string> } | null> {
+  if (!isOpenAiCompatConfigured()) return null;
+
+  const runSummaries = params.runs
+    .filter((r) => r.source !== "skipped")
+    .map((r) => `### ${r.role} (${r.id})\n${r.output.slice(0, 2000)}`)
+    .join("\n\n---\n\n");
+
+  try {
+    const raw = await openAiCompatibleChatCompletion({
+      messages: [
+        {
+          role: "system",
+          content: [
+            `You are a world-class quality reviewer (iteration ${params.iteration}).`,
+            "Review each sub-agent output against INDUSTRY/WORLD-CLASS standards.",
+            "Evaluate: depth of expertise, actionability, completeness, structure, and whether it demonstrates real specialist knowledge.",
+            "Return ONLY JSON:",
+            '{ "allPass": true/false, "reviews": [{ "subId": "id", "pass": true/false, "feedback": "specific improvement instructions if not pass" }] }',
+            "Set allPass=true ONLY when ALL outputs meet professional/industry standards.",
+            "Be strict but fair. Generic or surface-level output = fail. Expert-level, actionable, comprehensive = pass."
+          ].join(" ")
+        },
+        {
+          role: "user",
+          content: `Mission:\n${params.motherPrompt.slice(0, 2000)}\n\nLead: ${params.profile.name} (${params.profile.role})\n\nSub-agent outputs:\n${runSummaries.slice(0, 10000)}`
+        }
+      ],
+      maxTokens: 1200,
+      temperature: 0.2,
+      timeoutMs: 60_000
+    });
+
+    const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
+    const candidate = (fenced?.[1] ?? raw).trim();
+    const start = candidate.indexOf("{");
+    let depth = 0, end = -1;
+    for (let i = start; i < candidate.length; i++) {
+      if (candidate[i] === "{") depth++;
+      else if (candidate[i] === "}") { depth--; if (depth === 0) { end = i; break; } }
+    }
+    if (start === -1 || end === -1) return null;
+
+    const data = JSON.parse(candidate.slice(start, end + 1)) as {
+      allPass?: boolean;
+      reviews?: { subId: string; pass: boolean; feedback: string }[];
+    };
+
+    const feedback: Record<string, string> = {};
+    if (Array.isArray(data.reviews)) {
+      for (const r of data.reviews) {
+        if (!r.pass && r.feedback) {
+          feedback[r.subId] = r.feedback;
+        }
+      }
+    }
+
+    return { pass: data.allPass === true && Object.keys(feedback).length === 0, feedback };
+  } catch (err) {
+    logger.warn({ err }, "Fleet review LLM call failed");
+    return null;
+  }
+}
+
+/**
+ * Runs the fleet with auto-review loop: execute → review → rework failing agents → repeat.
+ * Stops when all pass or max iterations reached.
+ */
+export async function runSubAgentFleetWithReview(params: {
+  missionId: string;
+  motherPrompt: string;
+  profile: SpecialistAgentProfile;
+  openClawContext?: string;
+  onProgress?: (label: string) => void;
+  maxIterations?: number;
+}): Promise<{ events: string[]; summary: FleetOrchestrationSummary; iterations: number }> {
+  const maxIter = params.maxIterations ?? 3;
+  let iteration = 0;
+  let lastResult = await runSubAgentFleet(params);
+  iteration++;
+
+  const allEvents = [...lastResult.events];
+  let currentRuns = lastResult.summary.subAgentRuns;
+
+  while (iteration < maxIter) {
+    params.onProgress?.(`Review iterasi ${iteration}/${maxIter}`);
+    allEvents.push(`Fleet review: iteration ${iteration} — evaluating output quality...`);
+
+    const review = await reviewFleetOutput({
+      motherPrompt: params.motherPrompt,
+      profile: params.profile,
+      runs: currentRuns,
+      iteration
+    });
+
+    if (!review) {
+      allEvents.push("Fleet review: reviewer unavailable — accepting current output.");
+      break;
+    }
+
+    if (review.pass) {
+      allEvents.push(`Fleet review: ALL PASS at iteration ${iteration} — industry-standard quality achieved.`);
+      params.onProgress?.(`Quality PASS (iterasi ${iteration})`);
+      break;
+    }
+
+    const failedIds = Object.keys(review.feedback);
+    allEvents.push(`Fleet review: ${failedIds.length} sub-agent(s) need rework: ${failedIds.join(", ")}`);
+    params.onProgress?.(`Rework ${failedIds.length} agent (iterasi ${iteration + 1})`);
+
+    const subs = params.profile.subAgents ?? [];
+    let prior = "";
+    const updatedRuns: SubAgentRunResult[] = [];
+
+    for (const run of currentRuns) {
+      const feedback = review.feedback[run.id];
+      if (!feedback || run.source === "skipped") {
+        updatedRuns.push(run);
+        prior += `\n\n### ${run.role} (${run.id})\n${run.output}`;
+        continue;
+      }
+
+      const sub = subs.find((s) => s.id === run.id);
+      if (!sub) {
+        updatedRuns.push(run);
+        prior += `\n\n### ${run.role} (${run.id})\n${run.output}`;
+        continue;
+      }
+
+      allEvents.push(`Fleet rework: re-running ${run.role} (${run.id}) with feedback`);
+      params.onProgress?.(`Rework · ${run.role}`);
+
+      let output: string | null = null;
+      let source: SubAgentRunResult["source"] = "skipped";
+      const preferOpenClaw = isOpenClawOrchestrationEnabled();
+
+      if (preferOpenClaw) {
+        output = await runSubViaOpenClaw({
+          missionId: params.missionId,
+          motherPrompt: params.motherPrompt,
+          profile: params.profile,
+          sub,
+          priorOutputs: prior,
+          openClawContext: params.openClawContext,
+          reviewFeedback: feedback
+        });
+        if (output) source = "openclaw";
+      }
+
+      if (!output) {
+        try {
+          output = await runSubViaOpenAiCompat({
+            motherPrompt: params.motherPrompt,
+            profile: params.profile,
+            sub,
+            priorOutputs: prior,
+            openClawContext: params.openClawContext,
+            reviewFeedback: feedback
+          });
+          if (output) source = "openai-compat";
+        } catch {
+          /* fallback to previous output */
+        }
+      }
+
+      if (!output) {
+        updatedRuns.push(run);
+        prior += `\n\n### ${run.role} (${run.id})\n${run.output}`;
+        allEvents.push(`Fleet rework: ${run.id} rework failed — keeping previous output`);
+      } else {
+        const updatedRun = { ...run, output, source };
+        updatedRuns.push(updatedRun);
+        prior += `\n\n### ${run.role} (${run.id})\n${output}`;
+        allEvents.push(`Fleet rework: ${run.id} improved (${output.length} chars, source=${source})`);
+      }
+    }
+
+    currentRuns = updatedRuns;
+    iteration++;
+  }
+
+  if (iteration >= maxIter) {
+    allEvents.push(`Fleet review: max iterations (${maxIter}) reached — delivering best output.`);
+  }
+
+  const stitched = concatMergeReport({
+    missionId: params.missionId,
+    motherPrompt: params.motherPrompt,
+    profile: params.profile,
+    runs: currentRuns
+  });
+
+  const synthesized = await synthesizeMergeIfPossible(params.motherPrompt, params.profile, currentRuns);
+  const mergedReport = synthesized
+    ? [
+        `# Central Agent - synthesized fleet report (${iteration} iteration${iteration > 1 ? "s" : ""})`,
+        "",
+        synthesized.trim(),
+        "",
+        "---",
+        "",
+        "## Raw per-sub outputs (appendix)",
+        "",
+        stitched
+      ].join("\n")
+    : stitched;
+
+  allEvents.push(`Fleet: final merge complete after ${iteration} iteration(s) (${mergedReport.length} chars).`);
+
+  return {
+    events: allEvents,
+    summary: { mergedReport, subAgentRuns: currentRuns },
+    iterations: iteration
+  };
 }

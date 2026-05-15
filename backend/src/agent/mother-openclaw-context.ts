@@ -23,7 +23,16 @@ export function buildOpenClawMissionContext(params: {
   const specialistSkills = params.squad
     .map((s) => {
       const block = s.skillMd?.trim() || s.skills.map((sk) => `${sk.label}. ${sk.description}`).join("\n");
-      return `Specialist ${s.name} role ${s.role} lane ${s.canvasLane ?? "general"}\n${block}`;
+      const instrBlock = s.skills
+        .filter((sk) => sk.instructions?.trim())
+        .slice(0, 5)
+        .map((sk) => `[${sk.label}] ${sk.instructions!.trim().slice(0, 600)}`)
+        .join("\n");
+      return [
+        `Specialist ${s.name} role ${s.role} lane ${s.canvasLane ?? "general"}`,
+        block,
+        instrBlock ? `\nDetailed instructions:\n${instrBlock}` : ""
+      ].filter(Boolean).join("\n");
     })
     .join("\n\n");
 

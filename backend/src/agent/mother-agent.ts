@@ -2,7 +2,7 @@ import type { MissionPayload, MissionResult, SpecialistAgentProfile } from "../t
 import { buildEffectiveMissionPrompt } from "./mission-prompt";
 import { buildMissionGraph } from "./mission-graph";
 import { orchestrateViaOpenClaw, shouldRunOpenClaw } from "./openclaw-bridge";
-import { runSubAgentFleet } from "./fleet-orchestrator";
+import { runSubAgentFleet, runSubAgentFleetWithReview } from "./fleet-orchestrator";
 import { synthesizeSquadFromMother } from "./mother-synthesize";
 import { runToolRoute } from "./tool-router";
 import { browserTouchFromPrompt } from "../capabilities/browser";
@@ -193,22 +193,26 @@ export async function runMission(
   if (isAutoOrchestrationEnabled() && profile.subAgents?.length) {
     emit({
       phase: "fleet-run",
-      label: "OpenClaw fleet otomatis",
-      detail: `${profile.subAgents.length} sub-agent via OpenClaw (utama) + gateway fallback`
+      label: "Fleet + auto-review loop",
+      detail: `${profile.subAgents.length} sub-agent — iterasi sampai standar industri`
     });
-    const fleet = await runSubAgentFleet({
+    const fleet = await runSubAgentFleetWithReview({
       missionId,
       motherPrompt: synthPrompt,
       profile,
       openClawContext,
+      maxIterations: 3,
       onProgress: (subLabel) => {
         emit({ phase: "fleet-run", label: subLabel });
       }
     });
     events.push(...fleet.events);
     fleetSummary = fleet.summary;
+    if (fleet.iterations > 1) {
+      events.push(`Fleet auto-review: ${fleet.iterations} iterasi untuk mencapai standar industri.`);
+    }
 
-    emit({ phase: "fleet-merge", label: "Central Agent menggabungkan laporan fleet" });
+    emit({ phase: "fleet-merge", label: `Central Agent merge (${fleet.iterations} iterasi)` });
   } else if (shouldRunOpenClaw(profile)) {
     const oc = await orchestrateViaOpenClaw({
       missionId,

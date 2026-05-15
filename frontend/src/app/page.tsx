@@ -30,7 +30,9 @@ const initialProfile: SpecialistAgentProfile = {
   allowedTools: [],
   outputFormat: "markdown",
   apiKeyRefs: [],
-  notes: ""
+  notes: "",
+  specializations: ["core-mission"],
+  orchestrationMode: "local"
 };
 
 export default function Page() {

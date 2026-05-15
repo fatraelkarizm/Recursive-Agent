@@ -1,3 +1,9 @@
+export type SubAgentDescriptor = {
+  id: string;
+  role: string;
+  focus: string;
+};
+
 export type SpecialistAgentProfile = {
   name: string;
   role: string;
@@ -7,6 +13,12 @@ export type SpecialistAgentProfile = {
   outputFormat: string;
   apiKeyRefs: string[];
   notes: string;
+  /** Declared capabilities inferred from the user mission (browser, OpenClaw fleet, etc.). */
+  specializations: string[];
+  /** When `openclaw`, the worker attempts a delegated orchestration turn via the OpenClaw CLI. */
+  orchestrationMode: "local" | "openclaw";
+  /** Child agents the mother intends OpenClaw to coordinate (best-effort stub generation). */
+  subAgents?: SubAgentDescriptor[];
 };
 
 export type MissionPayload = {

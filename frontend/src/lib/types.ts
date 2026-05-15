@@ -1,3 +1,9 @@
+export type SubAgentDescriptor = {
+  id: string;
+  role: string;
+  focus: string;
+};
+
 export type SpecialistAgentProfile = {
   name: string;
   role: string;
@@ -7,6 +13,9 @@ export type SpecialistAgentProfile = {
   outputFormat: string;
   apiKeyRefs: string[];
   notes: string;
+  specializations: string[];
+  orchestrationMode: "local" | "openclaw";
+  subAgents?: SubAgentDescriptor[];
 };
 
 export type ChatMessage = {

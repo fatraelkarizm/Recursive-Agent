@@ -1,12 +1,21 @@
 import type { SpecialistAgentProfile } from "../types";
 
 export function buildMissionGraph(profile: SpecialistAgentProfile): { steps: string[] } {
-  return {
-    steps: [
-      `Create specialist profile (${profile.role})`,
-      "Validate specialist config",
-      "Execute one tool action",
-      "Return mission summary"
-    ]
-  };
+  const steps: string[] = [
+    `Create specialist profile (${profile.role})`,
+    "Validate specialist config",
+    "Plan tool + sandbox actions"
+  ];
+
+  if (profile.specializations.includes("browser-automation")) {
+    steps.push("Read target URL via Tavily Extract (no local browser)");
+  }
+
+  if (profile.orchestrationMode === "openclaw" || profile.specializations.includes("openclaw-orchestration")) {
+    steps.push("Delegate fleet coordination to OpenClaw CLI");
+  }
+
+  steps.push("Execute tool route", "Run sandbox checkpoint", "Return mission summary");
+
+  return { steps };
 }

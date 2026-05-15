@@ -1,4 +1,12 @@
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTypescript from "eslint-config-next/typescript";
 
-export default [...nextVitals, ...nextTypescript];
+const eslintConfig = [
+  ...nextVitals,
+  ...nextTypescript,
+  {
+    ignores: ["**/*.d.ts"]
+  }
+];
+
+export default eslintConfig;

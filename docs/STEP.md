@@ -281,7 +281,7 @@ The worker should also return the generated agent definition so the frontend can
 
 Start with one worker route or handler only. Add more routes later if you need them.
 
-> **Status:** `POST /api/missions` returns `{ missionId, status, profile, events }` today. Grow `events` as you add real telemetry.
+> **Status:** `POST /api/missions` returns `{ missionId, status, profile, events }` today. Grow `events` as you add real telemetry. Browser (Playwright) + OpenClaw CLI orchestration hooks live in `backend/src/capabilities/browser.ts` and `backend/src/agent/openclaw-bridge.ts` — see [OPENCLAW_INTEGRATION.md](./OPENCLAW_INTEGRATION.md).
 
 ## 7. Connect Frontend To Worker
 Pick one transport.

@@ -33,11 +33,20 @@ const RECIPES: WorkspaceRecipe[] = [
     title: "Sales can",
     subtitle: "Turn reviews into talking points",
     prompt: "Build a sales specialist that extracts objections and strengths from pasted customer reviews."
+  },
+  {
+    id: "fleet-browser",
+    title: "Fleet + browser",
+    subtitle: "OpenClaw orchestration + headless browser",
+    prompt:
+      "Use OpenClaw to orchestrate multiple sub-agents. Open https://nextjs.org in a headless browser and summarize the hero headline."
   }
 ];
 
 const INTEGRATIONS = [
   { name: "Mother agent API", detail: "POST /api/missions", tone: "text-electric" },
+  { name: "OpenClaw CLI", detail: "openclaw agent --json (see docs/OPENCLAW_INTEGRATION.md)", tone: "text-electric" },
+  { name: "Playwright", detail: "browser touch in backend/src/capabilities", tone: "text-slate" },
   { name: "MCP (hosted)", detail: "Wire in SETUP.md", tone: "text-slate" },
   { name: "E2B sandbox", detail: "backend/src/sandbox", tone: "text-slate" },
   { name: "Env keys", detail: ".env in frontend/backend", tone: "text-slate" }

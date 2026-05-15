@@ -11,10 +11,9 @@ The product is designed to feel like a mission control dashboard rather than a h
 
 ## Current Repository Status
 This repository is a **working monorepo slice**:
-- **`frontend/`** — Next.js 14 (App Router) dashboard with a three-column mission control UI, React Flow workflow canvas, and REST client to the worker.
+- **`frontend/`** — Next.js Latest dashboard with a three-column mission control UI, React Flow workflow canvas, and REST client to the worker.
 - **`backend/`** — Express worker with a mother-agent mission path, stub tool routing, and optional E2B wiring (see `backend/src`).
 
-Older narrative docs still describe the full target product; **for “what exists in Git today” and the fastest path to run it, start with [docs/STEP.md](./docs/STEP.md).**
 
 ## Product Story
 The user experience should feel like this:
@@ -120,6 +119,7 @@ See [SETUP.md](./docs/SETUP.md) and [LIBRARY.md](./docs/LIBRARY.md) for the exac
 ## Documentation Index
 - [STEP.md](./docs/STEP.md) — **Start here:** what is implemented, checklists, and copy-paste run order
 - [SETUP.md](./docs/SETUP.md) — Bootstrap commands and environment setup
+- [OPENCLAW_INTEGRATION.md](./docs/OPENCLAW_INTEGRATION.md) — OpenClaw CLI orchestration + Playwright browser touch
 - [LIBRARY.md](./docs/LIBRARY.md) — Dependency and MCP registry
 - [DESIGN.md](./docs/DESIGN.md) — UI system and interaction model (includes the three-column layout)
 - [INFRASTRUCTURE.md](./docs/INFRASTRUCTURE.md) — Runtime architecture and deployment model
@@ -131,13 +131,6 @@ See [SETUP.md](./docs/SETUP.md) and [LIBRARY.md](./docs/LIBRARY.md) for the exac
 - Do not assume all agent or MCP packages run on Edge runtime.
 - Keep the UI and worker concerns separate so the app can degrade gracefully.
 - Prefer one stable, demoable end-to-end path over many partially working features.
-
-## Submission Assets To Prepare
-- Public GitHub repository
-- README with installation steps and screenshots or GIFs
-- Maximum 2 minute demo video
-- Maximum 5 slide PDF pitch deck
-- Final list of AI models and tools used
 
 ## License And Credits
 This repository is a hackathon concept project and should be populated with the actual team implementation, demo assets, and release notes before submission.

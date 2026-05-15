@@ -41,6 +41,26 @@ export function SpecialistAgentPanel({ profile, variant = "card" }: SpecialistAg
             <span className="text-white">{profile.systemInstructions}</span>
           </p>
         ) : null}
+        <p>
+          <span className="text-slate">Orchestration:</span>{" "}
+          <span className="text-white">{profile.orchestrationMode}</span>
+        </p>
+        <p>
+          <span className="text-slate">Specializations:</span>{" "}
+          <span className="text-white">{profile.specializations?.join(", ") || "—"}</span>
+        </p>
+        {profile.subAgents?.length ? (
+          <div>
+            <span className="text-slate">Sub-agents (OpenClaw fleet):</span>
+            <ul className="mt-1 list-inside list-disc text-white">
+              {profile.subAgents.map((s) => (
+                <li key={s.id}>
+                  <span className="font-mono text-[11px] text-electric">{s.id}</span> — {s.role}: {s.focus}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
       </div>
     </aside>
   );

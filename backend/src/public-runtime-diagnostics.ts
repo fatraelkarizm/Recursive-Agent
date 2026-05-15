@@ -87,7 +87,7 @@ export function getPublicRuntimeDiagnostics(): PublicRuntimeDiagnostics {
       openAiCompat: {
         configured,
         baseUrlDisplay: safeBaseUrlDisplay(base),
-        model: envTrim("OPENAI_COMPAT_MODEL") || "deepseek/deepseek-v4-pro",
+        model: envTrim("OPENAI_COMPAT_MODEL") || "qwen3.6-plus",
         timeoutMs: Number(process.env.OPENAI_COMPAT_TIMEOUT_MS ?? "45000"),
         bearerFrom,
         bearerPresent

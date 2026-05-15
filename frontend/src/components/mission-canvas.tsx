@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, type ReactNode } from "react";
 import {
   Background,
   BackgroundVariant,
@@ -313,9 +313,16 @@ type MissionCanvasProps = {
   specialists: SpecialistAgentProfile[];
   onSelectAgent?: (target: AgentDashboardTarget) => void;
   onOpenMotherDashboard?: () => void;
+  thoughtOverlay?: ReactNode;
 };
 
-export function MissionCanvas({ status, specialists, onSelectAgent, onOpenMotherDashboard }: MissionCanvasProps) {
+export function MissionCanvas({
+  status,
+  specialists,
+  onSelectAgent,
+  onOpenMotherDashboard,
+  thoughtOverlay
+}: MissionCanvasProps) {
   return (
     <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-b from-[#050f1f] via-[#061222] to-[#030914] shadow-inner shadow-black/40">
       <header className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-3 sm:px-5">
@@ -342,6 +349,7 @@ export function MissionCanvas({ status, specialists, onSelectAgent, onOpenMother
             onOpenMotherDashboard={onOpenMotherDashboard}
           />
         </ReactFlowProvider>
+        {thoughtOverlay}
       </div>
     </section>
   );

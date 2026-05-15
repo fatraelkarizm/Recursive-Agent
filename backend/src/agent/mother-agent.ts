@@ -3,33 +3,64 @@ import { buildEffectiveMissionPrompt } from "./mission-prompt";
 import { buildMissionGraph } from "./mission-graph";
 import { orchestrateViaOpenClaw, shouldRunOpenClaw } from "./openclaw-bridge";
 import { runSubAgentFleet } from "./fleet-orchestrator";
-import { inferSpecialistSquad } from "./squad-inference";
+import { synthesizeSquadFromMother } from "./mother-synthesize";
 import { runToolRoute } from "./tool-router";
 import { runSandboxTask } from "../sandbox/e2b";
 import { browserTouchFromPrompt } from "../capabilities/browser";
 import { enrichProfileReadmeWithSumopod } from "../compat/openai-compatible-chat";
 import { persistMissionResult } from "../db/mission-store";
+import type { MissionProgressEmitter } from "./mission-progress";
+import { createProgressEmitter } from "./mission-progress";
 
 function randomId(length = 8): string {
   return Math.random().toString(36).slice(2, 2 + length);
 }
 
-/** @deprecated Prefer `inferSpecialistSquad` — kept for clarity; returns lead specialist only. */
-export function generateSpecialistProfile(prompt: string): SpecialistAgentProfile {
-  return inferSpecialistSquad(prompt)[0];
-}
-
-export async function runMission(payload: MissionPayload): Promise<MissionResult> {
+export async function runMission(
+  payload: MissionPayload,
+  onProgress?: MissionProgressEmitter
+): Promise<MissionResult> {
+  const emit = createProgressEmitter(onProgress);
   const missionId = randomId(10);
   const effectivePrompt = buildEffectiveMissionPrompt(payload);
-  const squad = inferSpecialistSquad(effectivePrompt);
+
+  emit({
+    phase: "mother-planning",
+    label: "Mother berpikir…",
+    detail: "Mendekomposisi misi dan merancang squad specialist"
+  });
+
+  const { squad, motherBrief, source } = await synthesizeSquadFromMother(payload);
+
+  emit({
+    phase: "mother-spawn",
+    label: "Mother menghasilkan agent",
+    detail: squad.map((s) => s.name).join(", ")
+  });
+
+  emit({
+    phase: "mother-review",
+    label: "Review rencana",
+    detail: motherBrief.slice(0, 280)
+  });
+
   for (const member of squad) {
-    await enrichProfileReadmeWithSumopod(member, effectivePrompt);
+    if (member.readmeMd.length < 400) {
+      emit({
+        phase: "specialist-readme",
+        label: `Melengkapi README · ${member.name}`,
+        detail: member.role
+      });
+      await enrichProfileReadmeWithSumopod(member, effectivePrompt);
+    }
   }
 
   const profile = squad[0];
   const graph = buildMissionGraph(profile);
   const events: string[] = [];
+  events.push(`Mother: squad via ${source}`);
+  events.push(`Mother brief: ${motherBrief.slice(0, 500)}${motherBrief.length > 500 ? "…" : ""}`);
+
   if (squad.length > 1) {
     events.push(
       `Squad: ${squad.length} specialists (${squad.map((s) => `${s.name}:${s.canvasLane ?? "general"}`).join(", ")})`
@@ -46,14 +77,23 @@ export async function runMission(payload: MissionPayload): Promise<MissionResult
 
   let fleetSummary: MissionResult["fleetSummary"];
   if (profile.subAgents?.length) {
+    emit({
+      phase: "fleet-run",
+      label: "Fleet sub-agent berjalan",
+      detail: `${profile.subAgents.length} leg sequential`
+    });
     const fleet = await runSubAgentFleet({
       missionId,
       motherPrompt: effectivePrompt,
       profile,
-      browserContext
+      browserContext,
+      onProgress: (subLabel) => {
+        emit({ phase: "fleet-run", label: subLabel });
+      }
     });
     events.push(...fleet.events);
     fleetSummary = fleet.summary;
+    emit({ phase: "fleet-merge", label: "Mother menggabungkan laporan fleet" });
   } else if (shouldRunOpenClaw(profile)) {
     const oc = await orchestrateViaOpenClaw({
       missionId,
@@ -63,6 +103,7 @@ export async function runMission(payload: MissionPayload): Promise<MissionResult
     events.push(oc);
   }
 
+  emit({ phase: "tools", label: "Tool route & sandbox" });
   const toolEvent = await runToolRoute(effectivePrompt, { preferTavilySearch: payload.preferTavilySearch === true });
   events.push(`Tool route: ${toolEvent}`);
 
@@ -75,9 +116,12 @@ export async function runMission(payload: MissionPayload): Promise<MissionResult
     profile,
     specialists: squad.length > 1 ? squad : undefined,
     fleetSummary,
+    motherBrief,
+    squadSource: source,
     events
   };
 
+  emit({ phase: "persist", label: "Menyimpan ke database" });
   try {
     const persistence = await persistMissionResult({
       prompt: effectivePrompt,
@@ -94,5 +138,6 @@ export async function runMission(payload: MissionPayload): Promise<MissionResult
     result.events.push(`Persistence failed: ${message}`);
   }
 
+  emit({ phase: "done", label: "Mission selesai", detail: missionId });
   return result;
 }

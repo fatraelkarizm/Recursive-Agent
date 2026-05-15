@@ -4,8 +4,25 @@
  */
 
 import type { SpecialistAgentProfile } from "../types";
+import { logger } from "../logging";
 
 type ChatMessage = { role: "system" | "user" | "assistant"; content: string };
+
+function isDeepseekUpstreamExhausted(status: number, raw: string): boolean {
+  if (status !== 402) return false;
+  const s = raw.toLowerCase();
+  return s.includes("insufficient balance") || s.includes("deepseekexception");
+}
+
+function resolveFallbackModel(primary: string): string | null {
+  const explicit = process.env.OPENAI_COMPAT_FALLBACK_MODEL?.trim();
+  if (explicit) return explicit;
+  // SumoPod: DeepSeek route can 402 while Gemini still works on the same API key / credit.
+  if (primary.toLowerCase().includes("deepseek")) {
+    return "gemini/gemini-2.5-flash";
+  }
+  return null;
+}
 
 function joinUrl(base: string, path: string): string {
   const b = base.replace(/\/$/, "");
@@ -22,24 +39,18 @@ export function isOpenAiCompatConfigured(): boolean {
 /**
  * POST /v1/chat/completions — same contract as OpenAI / SumoPod curl examples.
  */
-export async function openAiCompatibleChatCompletion(params: {
+async function chatCompletionOnce(params: {
+  base: string;
+  apiKey: string;
+  model: string;
   messages: ChatMessage[];
-  maxTokens?: number;
-  temperature?: number;
-}): Promise<string> {
-  const base = process.env.OPENAI_COMPAT_BASE_URL?.trim();
-  const apiKey = (process.env.OPENAI_COMPAT_API_KEY ?? process.env.DEEPSEEK_API_KEY)?.trim();
-  const model = process.env.OPENAI_COMPAT_MODEL?.trim() || "deepseek/deepseek-v4-pro";
-
-  if (!base || !apiKey) {
-    throw new Error("OPENAI_COMPAT_BASE_URL and a bearer key (OPENAI_COMPAT_API_KEY or DEEPSEEK_API_KEY) are required");
-  }
-
-  const url = joinUrl(base, "chat/completions");
-  const timeoutMs = Number(process.env.OPENAI_COMPAT_TIMEOUT_MS ?? "45000");
-
+  maxTokens: number;
+  temperature: number;
+  timeoutMs: number;
+}): Promise<{ ok: true; text: string } | { ok: false; status: number; raw: string }> {
+  const url = joinUrl(params.base, "chat/completions");
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const timer = setTimeout(() => controller.abort(), params.timeoutMs);
 
   try {
     const res = await fetch(url, {
@@ -47,19 +58,19 @@ export async function openAiCompatibleChatCompletion(params: {
       signal: controller.signal,
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`
+        Authorization: `Bearer ${params.apiKey}`
       },
       body: JSON.stringify({
-        model,
+        model: params.model,
         messages: params.messages,
-        max_tokens: params.maxTokens ?? 200,
-        temperature: params.temperature ?? 0.7
+        max_tokens: params.maxTokens,
+        temperature: params.temperature
       })
     });
 
     const raw = await res.text();
     if (!res.ok) {
-      throw new Error(`HTTP ${res.status}: ${raw.slice(0, 500)}`);
+      return { ok: false, status: res.status, raw };
     }
 
     const data = JSON.parse(raw) as {
@@ -68,17 +79,58 @@ export async function openAiCompatibleChatCompletion(params: {
     };
 
     if (data.error?.message) {
-      throw new Error(data.error.message);
+      return { ok: false, status: 500, raw: data.error.message };
     }
 
     const text = data.choices?.[0]?.message?.content?.trim();
     if (!text) {
-      throw new Error("Empty completion content");
+      return { ok: false, status: 500, raw: "Empty completion content" };
     }
-    return text;
+    return { ok: true, text };
   } finally {
     clearTimeout(timer);
   }
+}
+
+export async function openAiCompatibleChatCompletion(params: {
+  messages: ChatMessage[];
+  maxTokens?: number;
+  temperature?: number;
+}): Promise<string> {
+  const base = process.env.OPENAI_COMPAT_BASE_URL?.trim();
+  const apiKey = (process.env.OPENAI_COMPAT_API_KEY ?? process.env.DEEPSEEK_API_KEY)?.trim();
+  const model = process.env.OPENAI_COMPAT_MODEL?.trim() || "qwen3.6-plus";
+
+  if (!base || !apiKey) {
+    throw new Error("OPENAI_COMPAT_BASE_URL and a bearer key (OPENAI_COMPAT_API_KEY or DEEPSEEK_API_KEY) are required");
+  }
+
+  const timeoutMs = Number(process.env.OPENAI_COMPAT_TIMEOUT_MS ?? "45000");
+  const maxTokens = params.maxTokens ?? 200;
+  const temperature = params.temperature ?? 0.7;
+  const request = {
+    base,
+    apiKey,
+    messages: params.messages,
+    maxTokens,
+    temperature,
+    timeoutMs
+  };
+
+  let result = await chatCompletionOnce({ ...request, model });
+  if (result.ok) return result.text;
+
+  const fallbackModel = resolveFallbackModel(model);
+  if (fallbackModel && fallbackModel !== model && isDeepseekUpstreamExhausted(result.status, result.raw)) {
+    logger.warn(
+      { primary: model, fallback: fallbackModel },
+      "OpenAI-compat primary model unavailable (upstream DeepSeek balance); retrying fallback model"
+    );
+    result = await chatCompletionOnce({ ...request, model: fallbackModel });
+    if (result.ok) return result.text;
+  }
+
+  throw new Error(`HTTP ${result.status}: ${result.raw.slice(0, 500)}`);
 }
 
 /** One short assistant paragraph to append to specialist README when compat is enabled. */

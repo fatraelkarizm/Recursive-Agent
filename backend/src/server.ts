@@ -90,6 +90,37 @@ app.post("/api/missions", async (req, res) => {
   }
 });
 
+/** SSE: live Mother phases (thought cloud) + final MissionResult on `done`. */
+app.post("/api/missions/stream", async (req, res) => {
+  const parsed = missionSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ message: "Invalid payload" });
+  }
+
+  res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
+  res.setHeader("Cache-Control", "no-cache, no-transform");
+  res.setHeader("Connection", "keep-alive");
+  res.flushHeaders?.();
+
+  const write = (event: string, data: unknown) => {
+    res.write(`event: ${event}\n`);
+    res.write(`data: ${JSON.stringify(data)}\n\n`);
+  };
+
+  try {
+    const result = await runMission(parsed.data, (progress) => {
+      write("progress", progress);
+    });
+    write("done", result);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Mission failed";
+    logger.error({ error }, "Mission stream failed");
+    write("error", { message });
+  } finally {
+    res.end();
+  }
+});
+
 const port = Number(process.env.PORT || 4000);
 app.listen(port, () => {
   logger.info(`Backend running on http://localhost:${port}`);

@@ -3,11 +3,13 @@
 import dynamic from "next/dynamic";
 import { useState } from "react";
 import { nanoid } from "nanoid";
+import { AppHeader } from "@/components/app-header";
 import { ControlChatPanel } from "@/components/control-chat-panel";
+import { KnowledgePanel } from "@/components/knowledge-panel";
+import { MotherThoughtCloud } from "@/components/mother-thought-cloud";
 import { TerminalDrawer } from "@/components/terminal-drawer";
 import { VitalsPanel } from "@/components/vitals-panel";
 import { WorkspaceRail, type WorkspaceRecipe } from "@/components/workspace-rail";
-import { createMission } from "@/lib/api";
 import { AgentDashboardModal, type AgentDashboardTarget } from "@/components/agent-dashboard-modal";
 import {
   MotherAgentModal,
@@ -15,7 +17,13 @@ import {
   motherBundleToMissionExtras,
   type MotherMissionBundle
 } from "@/components/mother-agent-modal";
-import type { ChatMessage, FleetOrchestrationSummary, SpecialistAgentProfile } from "@/lib/types";
+import { createMissionStream } from "@/lib/mission-stream";
+import type {
+  ChatMessage,
+  FleetOrchestrationSummary,
+  MissionProgressEvent,
+  SpecialistAgentProfile
+} from "@/lib/types";
 
 const MissionCanvas = dynamic(
   () => import("@/components/mission-canvas").then((mod) => ({ default: mod.MissionCanvas })),
@@ -49,7 +57,6 @@ export default function Page() {
   const [prompt, setPrompt] = useState("");
   const [status, setStatus] = useState("idle");
   const [profile, setProfile] = useState<SpecialistAgentProfile>(initialProfile);
-  /** Latest squad for canvas + tabs (defaults to single pending profile before first run). */
   const [squad, setSquad] = useState<SpecialistAgentProfile[]>([initialProfile]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [selectedRecipeId, setSelectedRecipeId] = useState<string | null>(null);
@@ -59,6 +66,10 @@ export default function Page() {
   const [dashTarget, setDashTarget] = useState<AgentDashboardTarget | null>(null);
   const [motherBundle, setMotherBundle] = useState<MotherMissionBundle>(emptyMotherMissionBundle());
   const [motherModalOpen, setMotherModalOpen] = useState(false);
+  const [motherBrief, setMotherBrief] = useState<string | null>(null);
+  const [squadSource, setSquadSource] = useState<string | null>(null);
+  const [progress, setProgress] = useState<MissionProgressEvent[]>([]);
+  const [progressCurrent, setProgressCurrent] = useState<MissionProgressEvent | null>(null);
 
   function handleSelectRecipe(recipe: WorkspaceRecipe) {
     setSelectedRecipeId(recipe.id);
@@ -69,34 +80,62 @@ export default function Page() {
     if (!prompt.trim()) return;
     setBusy(true);
     setStatus("running");
+    setProgress([]);
+    setProgressCurrent(null);
     const promptTrim = prompt.trim();
     setLastMissionPrompt(promptTrim);
+
     try {
-      const result = await createMission({
-        prompt: promptTrim,
-        ...motherBundleToMissionExtras(motherBundle)
-      });
-      setProfile(result.profile);
-      setSquad(result.specialists ?? [result.profile]);
-      setFleetSummary(result.fleetSummary ?? null);
-      setStatus(result.status);
-      const lines = [
-        `Mission ${result.missionId} → ${result.status}`,
-        ...(result.events ?? []).map((event) => `• ${event}`)
-      ];
-      setMessages((current) => [
-        ...current,
+      await createMissionStream(
         {
-          id: nanoid(),
-          role: "assistant",
-          content: lines.join("\n"),
-          at: Date.now()
+          prompt: promptTrim,
+          ...motherBundleToMissionExtras(motherBundle)
+        },
+        {
+          onProgress: (event) => {
+            setProgressCurrent(event);
+            setProgress((prev) => [...prev, event]);
+          },
+          onDone: (result) => {
+            setProfile(result.profile);
+            setSquad(result.specialists ?? [result.profile]);
+            setFleetSummary(result.fleetSummary ?? null);
+            setMotherBrief(result.motherBrief ?? null);
+            setSquadSource(result.squadSource ?? null);
+            setStatus(result.status);
+            const lines = [
+              `Mission ${result.missionId} → ${result.status}`,
+              result.motherBrief ? `Mother: ${result.motherBrief.slice(0, 200)}…` : null,
+              ...(result.events ?? []).map((event) => `• ${event}`)
+            ].filter(Boolean);
+            setMessages((current) => [
+              ...current,
+              {
+                id: nanoid(),
+                role: "assistant",
+                content: lines.join("\n"),
+                at: Date.now()
+              }
+            ]);
+          },
+          onError: (message) => {
+            setStatus("failed");
+            setFleetSummary(null);
+            setMessages((current) => [
+              ...current,
+              {
+                id: nanoid(),
+                role: "assistant",
+                content: message,
+                at: Date.now()
+              }
+            ]);
+          }
         }
-      ]);
+      );
     } catch (error) {
       console.error(error);
       setStatus("failed");
-      setFleetSummary(null);
       setMessages((current) => [
         ...current,
         {
@@ -109,11 +148,13 @@ export default function Page() {
       ]);
     } finally {
       setBusy(false);
+      setProgressCurrent(null);
     }
   }
 
   return (
     <main className="flex h-screen min-h-[720px] flex-col bg-navy text-white">
+      <AppHeader status={status} squadSource={squadSource} />
       <MotherAgentModal
         open={motherModalOpen}
         onClose={() => setMotherModalOpen(false)}
@@ -140,8 +181,17 @@ export default function Page() {
             specialists={squad}
             onSelectAgent={(t) => setDashTarget(t)}
             onOpenMotherDashboard={() => setMotherModalOpen(true)}
+            thoughtOverlay={
+              <MotherThoughtCloud active={busy} current={progressCurrent} history={progress} />
+            }
           />
-          <div className="grid shrink-0 grid-cols-1 gap-3 lg:grid-cols-2">
+          <div className="grid shrink-0 grid-cols-1 gap-3 lg:grid-cols-3">
+            <KnowledgePanel
+              bundle={motherBundle}
+              motherBrief={motherBrief}
+              squadSource={squadSource}
+              progress={progress}
+            />
             <VitalsPanel status={status} />
             <TerminalDrawer events={messages.filter((m) => m.role === "assistant").slice(-1)} />
           </div>

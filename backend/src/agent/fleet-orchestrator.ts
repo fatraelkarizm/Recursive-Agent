@@ -9,6 +9,37 @@ function sanitizeGatewayErrorMessage(raw: string): string {
   return m.length > 450 ? `${m.slice(0, 447)}…` : m;
 }
 
+function gatewayFailureHint(detail: string): string {
+  const d = detail.toLowerCase();
+  if (d.includes("402") || d.includes("insufficient balance")) {
+    return [
+      "**Penyebab:** bukan saldo **SumoPod Credit** kamu — error ini dari **pool provider DeepSeek** di sisi SumoPod (upstream `Insufficient Balance`). Kredit ~$3 kamu bisa tetap ada sementara route `deepseek/deepseek-v4-pro` ditolak.",
+      "**Perbaikan cepat:** set `OPENAI_COMPAT_MODEL=gemini/gemini-2.5-flash` (tes dari mesin ini: Gemini **200 OK** dengan key yang sama). Atau tunggu SumoPod memulihkan route DeepSeek / hubungi support.",
+      "Backend juga bisa auto-retry `OPENAI_COMPAT_FALLBACK_MODEL` (default `gemini/gemini-2.5-flash` bila primary DeepSeek). **Restart backend** setelah ubah `.env`."
+    ].join("\n");
+  }
+  if (d.includes("401") || d.includes("invalid api key") || d.includes("authentication")) {
+    return "**Penyebab:** bearer/API key ditolak. Cek `OPENAI_COMPAT_API_KEY` atau `DEEPSEEK_API_KEY` di `backend/.env`, lalu restart backend.";
+  }
+  if (d.includes("429") || d.includes("rate limit")) {
+    return "**Penyebab:** rate limit upstream. Tunggu sebentar atau turunkan beban mission; fleet bisa fallback ke OpenClaw.";
+  }
+  return "_Cek: kuota/key, `OPENAI_COMPAT_MODEL`, koneksi worker → upstream, dan log backend._";
+}
+
+function formatGatewayFailureBlock(detail: string): string {
+  return [
+    "_Gateway OpenAI-compatible sudah di-set tetapi **permintaan gagal** — mencoba fallback lain jika tersedia._",
+    "",
+    gatewayFailureHint(detail),
+    "",
+    "**Ringkas error (tanpa menampilkan key):**",
+    "```text",
+    sanitizeGatewayErrorMessage(detail),
+    "```"
+  ].join("\n");
+}
+
 function fleetMaxTokensPerSub(): number {
   const n = Number(process.env.FLEET_MAX_TOKENS_PER_SUB ?? "1400");
   return Number.isFinite(n) && n > 200 ? n : 1400;
@@ -78,16 +109,8 @@ async function runSubViaOpenAiCompat(params: {
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
     logger.warn({ err, subId: params.sub.id }, "OpenAI-compat fleet sub-agent call failed");
-    return [
-      "_Gateway OpenAI-compatible sudah di-set tetapi **permintaan gagal**._",
-      "",
-      "**Ringkas error (tanpa menampilkan key):**",
-      "```text",
-      sanitizeGatewayErrorMessage(detail),
-      "```",
-      "",
-      "_Cek: kuota/key, `OPENAI_COMPAT_MODEL`, koneksi dari mesin worker ke upstream, dan log backend._"
-    ].join("\n");
+    // Return null so the fleet can fall back to OpenClaw; caller attaches detail to events/appendix.
+    throw new Error(detail);
   }
 }
 
@@ -200,6 +223,7 @@ export async function runSubAgentFleet(params: {
   motherPrompt: string;
   profile: SpecialistAgentProfile;
   browserContext?: string;
+  onProgress?: (label: string) => void;
 }): Promise<{ events: string[]; summary: FleetOrchestrationSummary }> {
   const subs = params.profile.subAgents ?? [];
   const events: string[] = [];
@@ -214,18 +238,30 @@ export async function runSubAgentFleet(params: {
 
   const runs: SubAgentRunResult[] = [];
   let prior = "";
+  const gatewayFailures: string[] = [];
 
   for (const sub of subs) {
+    params.onProgress?.(`Sub-agent · ${sub.role}`);
     events.push(`Fleet: start ${sub.role} (\`${sub.id}\`)`);
 
-    let output: string | null = await runSubViaOpenAiCompat({
-      motherPrompt: params.motherPrompt,
-      profile: params.profile,
-      sub,
-      priorOutputs: prior,
-      browserContext: params.browserContext
-    });
-    let source: SubAgentRunResult["source"] = "openai-compat";
+    let output: string | null = null;
+    let source: SubAgentRunResult["source"] = "skipped";
+    let compatError: string | null = null;
+
+    try {
+      output = await runSubViaOpenAiCompat({
+        motherPrompt: params.motherPrompt,
+        profile: params.profile,
+        sub,
+        priorOutputs: prior,
+        browserContext: params.browserContext
+      });
+      if (output) source = "openai-compat";
+    } catch (err) {
+      compatError = err instanceof Error ? err.message : String(err);
+      gatewayFailures.push(compatError);
+      events.push(`Fleet: OpenAI-compat failed for ${sub.id} — trying OpenClaw if enabled.`);
+    }
 
     if (!output) {
       output = await runSubViaOpenClaw({
@@ -236,13 +272,18 @@ export async function runSubAgentFleet(params: {
         priorOutputs: prior,
         browserContext: params.browserContext
       });
-      source = output ? "openclaw" : "skipped";
+      if (output) source = "openclaw";
     }
 
     if (!output) {
-      output =
-        "_No LLM gateway (OPENAI_COMPAT_*) and OpenClaw unavailable or OPENCLAW_ORCHESTRATION=0 — configure SumoPod/OpenAI-compat or enable OpenClaw for this sub-agent._";
-      source = "skipped";
+      if (compatError) {
+        output = formatGatewayFailureBlock(compatError);
+        source = "skipped";
+      } else {
+        output =
+          "_No LLM gateway (OPENAI_COMPAT_*) and OpenClaw unavailable or OPENCLAW_ORCHESTRATION=0 — configure SumoPod/OpenAI-compat or enable OpenClaw for this sub-agent._";
+        source = "skipped";
+      }
     }
 
     runs.push({ id: sub.id, role: sub.role, focus: sub.focus, output, source });
@@ -256,6 +297,11 @@ export async function runSubAgentFleet(params: {
     profile: params.profile,
     runs
   });
+
+  if (gatewayFailures.length > 0) {
+    const last = gatewayFailures[gatewayFailures.length - 1]!;
+    events.push(`Fleet: OpenAI-compat errors (${gatewayFailures.length}) — last: ${sanitizeGatewayErrorMessage(last).slice(0, 120)}`);
+  }
 
   const synthesized = await synthesizeMergeIfPossible(params.motherPrompt, params.profile, runs);
   const mergedReport = synthesized

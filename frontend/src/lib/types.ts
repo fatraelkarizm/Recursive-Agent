@@ -56,11 +56,32 @@ export type FleetOrchestrationSummary = {
   subAgentRuns: SubAgentRunResult[];
 };
 
+export type MotherPhase =
+  | "mother-planning"
+  | "mother-spawn"
+  | "mother-review"
+  | "specialist-readme"
+  | "fleet-run"
+  | "fleet-merge"
+  | "tools"
+  | "persist"
+  | "done"
+  | "error";
+
+export type MissionProgressEvent = {
+  phase: MotherPhase;
+  label: string;
+  detail?: string;
+  at: string;
+};
+
 export type MissionResponse = {
   missionId: string;
   profile: SpecialistAgentProfile;
   specialists?: SpecialistAgentProfile[];
   fleetSummary?: FleetOrchestrationSummary;
+  motherBrief?: string;
+  squadSource?: "mother-llm" | "fallback-rules";
   status: "created" | "running" | "completed" | "failed";
   events?: string[];
 };

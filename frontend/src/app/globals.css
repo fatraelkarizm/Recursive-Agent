@@ -25,3 +25,72 @@ body {
   border-color: rgba(100, 255, 218, 0.72);
   box-shadow: 0 0 0 3px rgba(100, 255, 218, 0.12);
 }
+
+@keyframes thought-pulse {
+  0%,
+  100% {
+    transform: scale(0.92);
+    opacity: 0.45;
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 0.75;
+  }
+}
+
+@keyframes thought-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.thought-orb {
+  position: absolute;
+  width: min(420px, 70%);
+  height: min(380px, 65%);
+  border-radius: 9999px;
+  filter: blur(48px);
+  animation: thought-pulse 4.2s ease-in-out infinite;
+}
+
+.thought-orb-delay {
+  animation-delay: 1.4s;
+  transform: scale(0.85);
+}
+
+.thought-glow-violet {
+  background: radial-gradient(circle, rgba(139, 92, 246, 0.45), transparent 68%);
+}
+
+.thought-glow-electric {
+  background: radial-gradient(circle, rgba(100, 255, 218, 0.38), transparent 68%);
+}
+
+.thought-glow-amber {
+  background: radial-gradient(circle, rgba(251, 191, 36, 0.35), transparent 68%);
+}
+
+.thought-glow-sky {
+  background: radial-gradient(circle, rgba(56, 189, 248, 0.35), transparent 68%);
+}
+
+.thought-glow-emerald {
+  background: radial-gradient(circle, rgba(52, 211, 153, 0.32), transparent 68%);
+}
+
+.thought-glow-indigo {
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.38), transparent 68%);
+}
+
+.thought-glow-slate {
+  background: radial-gradient(circle, rgba(148, 163, 184, 0.28), transparent 68%);
+}
+
+.animate-thought-card {
+  animation: thought-card-in 0.45s ease-out;
+}

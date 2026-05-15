@@ -72,5 +72,9 @@ export type MissionResult = {
   specialists?: SpecialistAgentProfile[];
   /** Present when `profile.subAgents` were executed in a fleet loop (not only a single plan). */
   fleetSummary?: FleetOrchestrationSummary;
+  /** Mother reasoning summary (LLM), shown in knowledge UI. */
+  motherBrief?: string;
+  /** `mother-llm` when squad came from synthesis; `fallback-rules` when gateway/parse failed. */
+  squadSource?: "mother-llm" | "fallback-rules";
   events: string[];
 };

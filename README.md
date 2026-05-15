@@ -120,9 +120,11 @@ Sub-agents (scout → worker → reviewer) call **`POST …/chat/completions`** 
 
 - **`OPENAI_COMPAT_BASE_URL`** — Root URL that already includes **`/v1`**. Contoh: `https://ai.sumopod.com/v1` (bukan cuma hostname; backend akan menempel path `chat/completions`).
 - **`OPENAI_COMPAT_API_KEY`** atau **`DEEPSEEK_API_KEY`** — Bearer token untuk header `Authorization`. Salah satu harus terisi.
-- **`OPENAI_COMPAT_MODEL`** — ID model di provider itu, mis. `deepseek/deepseek-v4-pro`.
+- **`OPENAI_COMPAT_MODEL`** — ID model di provider itu, mis. `qwen3.6-plus` (SumoPod: tanpa prefix `qwen/`).
 
 Tanpa pasangan **base URL + key**, fleet tetap jalan tapi tiap sub-agent `source=skipped` sampai OpenClaw CLI benar-benar bisa dipakai sebagai fallback. Lihat [OPENCLAW_INTEGRATION.md](./docs/OPENCLAW_INTEGRATION.md).
+
+**HTTP 402 / “Insufficient Balance” (DeepSeek via SumoPod):** sering **bukan** karena SumoPod Credit kamu habis — dashboard bisa masih ~$3 sementara **route `deepseek/deepseek-v4-pro`** ditolak (pool DeepSeek upstream SumoPod). Cek log SumoPod: request sukses vs Failure. **Workaround:** `OPENAI_COMPAT_MODEL=gemini/gemini-2.5-flash` (biasanya masih jalan dengan key yang sama). Backend juga auto-retry fallback bila primary DeepSeek 402. Setelah gateway HTTP gagal, fleet **mencoba OpenClaw** (`OPENCLAW_ORCHESTRATION=1`).
 
 ## Persistence
 The backend stores completed missions, generated specialist profiles, and ordered mission events in PostgreSQL:

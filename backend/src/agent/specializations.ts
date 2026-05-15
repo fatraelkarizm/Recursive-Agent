@@ -10,8 +10,8 @@ const URL_RE = /https?:\/\/[^\s<>"')]+/i;
  */
 export function isAutoOrchestrationEnabled(): boolean {
   const v = process.env.AUTO_ORCHESTRATION?.trim().toLowerCase();
-  if (v === "0" || v === "false" || v === "off" || v === "no") return false;
-  return true;
+  if (v === "1" || v === "true" || v === "on" || v === "yes") return true;
+  return false;
 }
 
 export function inferSpecializations(prompt: string): string[] {
